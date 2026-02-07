@@ -73,8 +73,13 @@ app.post("/api/transaction", async (req, res) => {
 app.delete("/api/transaction/:id", async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (isNaN(parseInt(id))) {
+      return res.status(400).json({ message: "invalid transactions id" });
+    }
+
     const result = await sql`
-      DELETE * FROM transactions WHERE user_id = ${id} RETURNING *
+      DELETE  FROM transactions WHERE user_id = ${id} RETURNING *
     `;
     if (result.length === 0) {
       return res.status(404).json({ message: "no transactions found" });
