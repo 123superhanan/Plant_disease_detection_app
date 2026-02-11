@@ -1,10 +1,10 @@
-import React from "react";
-import { Text, View } from "react-native";
-
+import { Link } from 'expo-router';
+import { View } from 'react-native';
 const index = () => {
   return (
     <View>
-      <Text> Main Screen </Text>
+      <h2>main page</h2>
+      <Link href="/history">Go to Profile</Link>
     </View>
   );
 };

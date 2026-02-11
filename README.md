@@ -1,99 +1,177 @@
-```
-# AgroVision  
-AI-Based Plant Disease Detection System  
+---
 
-Final Year Project – AIR University Islamabad  
+# AgroVision
 
-Group Members:  
-- Abdul Hanan Abbasi (240560)  
-- M Sameer Khalid (240556)  
-- Muhammad Humza (243443)  
+AI-Based Plant Disease Detection System
 
-## Project Overview  
-AgroVision is a mobile application that helps farmers detect plant diseases early.  
-Users upload a leaf photo. The app analyzes it with AI and shows:  
-- Plant name  
-- Disease name  
-- Severity level  
-- Confidence score  
-- Treatment recommendations  
-- Basic crop loss estimate  
+Final Year Project – AIR University Islamabad
 
-The goal is to reduce yield losses for small-scale farmers in Pakistan.
+Team:
 
-## Current Status  
-This is the planning and proposal phase (SRS document).  
-Development is in progress.  
-Core features planned:  
-- User registration and login  
-- Image upload and on-device AI analysis (TensorFlow.js)  
-- Detection history  
-- Personalized onboarding (crops, location, farm size)  
-- Admin dashboard for validation and charts  
-- Notifications  
+* Abdul Hanan Abbasi (240560)
+* M Sameer Khalid (240556)
+* Muhammad Humza (243443)
 
-## Key Features (Planned)  
-- On-device AI inference (no server needed for detection)  
-- Personalized results based on user crops and location  
-- Offline support for cached data  
-- Simple farmer-friendly UI  
+---
 
-## Tech Stack  
-Frontend: React Native  
-AI: TensorFlow.js  
-Backend: Firebase (Auth, Firestore, Storage, Notifications)  
-Training: Python + TensorFlow/Keras  
-Dataset: PlantVillage (~54,000 labeled plant images)  
-UI Design: Figma  
-Charts: Chart.js  
+## Overview
 
-## Project Structure (so far)  
-- SRS document (proposal, problem statement, objectives, modules, scope, limitations, tools, work division, Gantt chart, mockups, flow chart, references)  
-- Mockups (upload screen, result screen, history view)  
-- Flow chart (user journey from login to result)  
+AgroVision helps farmers detect plant diseases early using AI.
+Users upload a leaf photo; the app analyzes it and returns:
 
-## Installation (Development Setup)  
-1. Clone the repo (when ready)  
-2. Install dependencies  
-   ```
-   npm install
-   ```  
-3. Run the app  
-   ```
-   npx expo start
-   ```  
+- Plant name
+- Disease name
+- Severity level
+- Confidence score
+- Treatment guidance
+- Estimated crop loss
 
-## Future Work  
-- Finish AI model training and conversion to TensorFlow.js  
-- Implement onboarding screens  
-- Add personalized recommendations  
-- Build admin web dashboard  
-- Test with real farmer photos  
+Goal: Reduce crop yield losses for small-scale farmers in Pakistan.
 
-## License  
-This is a student project. All rights reserved.  
+---
 
-Made for AIR University FYP 2025–2026
+## System Architecture
 
-Tech Stack
-Frontend: React Native.
-AI: TensorFlow.js.
-Backend: Firebase.
-Training: Python, TensorFlow, Keras.
-Dataset: PlantVillage.
-UI Design: Figma.
-Charts: Chart.js.
-Installation Commands
-Set up the environment.
+**Mobile App:** React Native (Expo)
+**AI Inference:** TensorFlow.js (on-device)
+**AI Training:** Python, TensorFlow, Keras
+**Backend:** Firebase + Clerk + Neon PostgreSQL
+**Admin Dashboard:** Web (analytics and validation)
 
-For React Native app:
-textnpx create-expo-app AgroVision  
-cd AgroVision  
-npm install @tensorflow/tfjs @tensorflow/tfjs-react-native expo-camera react-native-onboarding-swiper @react-native-async-storage/async-storage expo-notifications firebase chart.js  
+---
+
+## Core Modules
+
+1. Authentication (Clerk, Firebase Auth)
+2. User Onboarding (crops, location, farm size)
+3. Image Detection (camera/upload + TensorFlow.js)
+4. Detection History (stored in Firestore or Neon DB)
+5. Personalized Recommendations
+6. Notifications (seasonal/disease alerts)
+7. Admin Dashboard (analytics, validation, charts)
+
+---
+
+## Backend Responsibilities
+
+- User authentication via Clerk
+- Store user profiles and onboarding data
+- Store detection logs in Neon DB
+- Provide transaction/analytics endpoints
+- Rate limiting with Express middleware
+- Push notifications via Firebase
+- Role-based admin access
+- Aggregated data for charts
+
+**Example table: transactions**
+
+| Column     | Type          | Notes                                     |
+| ---------- | ------------- | ----------------------------------------- |
+| id         | SERIAL        | Primary key                               |
+| user_id    | VARCHAR(255)  | User identifier                           |
+| title      | VARCHAR(255)  | Transaction title                         |
+| amount     | DECIMAL(10,2) | Positive for income, negative for expense |
+| categories | VARCHAR(255)  | Type/category                             |
+| created_at | DATE          | Defaults to current date                  |
+
+---
+
+## Dataset
+
+- PlantVillage (~54,000 labeled plant images)
+- Multiple crops and disease classes
+
+---
+
+## Tech Stack
+
+- Frontend: React Native, Expo
+- AI: TensorFlow.js
+- Backend: Firebase Auth, Firestore, Neon PostgreSQL, Clerk
+- Model Training: Python, TensorFlow, Keras, OpenCV
+- UI: Figma
+- Charts: Chart.js
+
+---
+
+## Development Setup
+
+### 1. Frontend (React Native App)
+
+```bash
+npx create-expo-app AgroVision
+cd AgroVision
+npm install @tensorflow/tfjs @tensorflow/tfjs-react-native expo-camera react-native-onboarding-swiper @react-native-async-storage/async-storage expo-notifications firebase chart.js
 npx expo start
 ```
-For AI training in Python:
-textconda create -n agrovision python=3.11  
-conda activate agrovision  
-pip install tensorflow keras numpy pandas matplotlib opencv-python scikit-learn  
-pip install tensorflowjs
+
+### 2. Backend (Node.js + Express + Neon + Clerk + Rate Limiter)
+
+```bash
+cd backend
+npm init -y
+npm install express dotenv @neondatabase/serverless pg @clerk/clerk-sdk-node express-rate-limit
+```
+
+**Run server**
+
+```bash
+node index.js
+```
+
+**Environment Variables (.env)**
+
+```
+PORT=5001
+DATABASE_URL=your_neon_database_url
+CLERK_SECRET_KEY=your_clerk_secret_key
+```
+
+### 3. AI Training Environment (Python)
+
+```bash
+conda create -n agrovision python=3.11
+conda activate agrovision
+pip install tensorflow keras numpy pandas matplotlib opencv-python scikit-learn tensorflowjs
+```
+
+---
+
+## API Endpoints
+
+| Method | Endpoint                          | Description                     |
+| ------ | --------------------------------- | ------------------------------- |
+| POST   | /api/transaction                  | Create a transaction            |
+| GET    | /api/transaction/:userId          | Get all transactions for a user |
+| DELETE | /api/transaction/:id              | Delete a transaction by ID      |
+| GET    | /api/transaction/summary/:user_id | Get balance, income, expenses   |
+
+---
+
+## Current Phase
+
+- SRS completed
+- Expo frontend setup completed
+- Backend setup (Express + Neon + Clerk + Rate Limiter)
+- AI model training in progress
+- Mockups and flowcharts ready
+
+---
+
+## Future Improvements
+
+- Finish AI model training and TensorFlow.js conversion
+- Implement onboarding screens
+- Personalized recommendations based on crops and location
+- Admin web dashboard for analytics and validation
+- Real farmer photo testing
+- Crop yield prediction module
+- Geolocation disease heatmaps
+
+---
+
+## License
+
+Student project. All rights reserved.
+
+---
