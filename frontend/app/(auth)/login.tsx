@@ -1,14 +1,13 @@
-import React, { Component } from "react";
-import { Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { Button, Text, View } from "react-native";
 
-export class login extends Component {
-  render() {
-    return (
-      <View>
-        <Text> textInComponent </Text>
-      </View>
-    );
-  }
+export default function Login() {
+  const router = useRouter();
+
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <Text>Plant Disease Detection Ai</Text>
+      <Button title="Go to Login" onPress={() => router.push("/login")} />
+    </View>
+  );
 }
-
-export default login;
