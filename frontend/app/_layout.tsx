@@ -7,6 +7,7 @@ export default function RootLayout() {
       <Stack.Screen name="(drawer)" />
       <Stack.Screen name="history" />
       <Stack.Screen name="result" />
+      <Stack.Screen name="onboarding" />
     </Stack>
   );
 }
