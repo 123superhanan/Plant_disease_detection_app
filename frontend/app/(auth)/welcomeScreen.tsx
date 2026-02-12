@@ -1,9 +1,11 @@
-import { Text, View } from "react-native";
+import { View, Text } from 'react-native';
 
-export default function WelcomeScreen() {
+const welcomeScreen = () => {
   return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <Text>WelcomeScreen</Text>
+    <View>
+      <Text>welcomeScreen</Text>
     </View>
   );
-}
+};
+
+export default welcomeScreen;
