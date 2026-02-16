@@ -8,6 +8,7 @@ export default function DrawerLayout() {
       <Drawer.Screen name="settings" />
       <Drawer.Screen name="notifications" />
       <Drawer.Screen name="model-stats" />
+      <Drawer.Screen name="history" />
     </Drawer>
   );
 }

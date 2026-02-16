@@ -1,41 +1,47 @@
+import { LinearGradient } from 'expo-linear-gradient'; // Add this for the premium feel
+import { router } from 'expo-router';
+import { useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
   Dimensions,
-  TouchableOpacity,
+  FlatList,
   Image,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRef, useState } from 'react';
-import { router } from 'expo-router';
-import { FlatList } from 'react-native';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const slides = [
   {
     id: '1',
     title: 'Scan Your Plant',
     description: 'Capture or upload a leaf image to detect plant diseases using AI.',
+   
     image: 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6',
   },
   {
     id: '2',
     title: 'AI Disease Detection',
     description: 'Our deep learning model analyzes leaf patterns and predicts disease instantly.',
-    image: 'https://images.unsplash.com/photo-1589927986089-35812388d1c4',
+   
+    image:
+      'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=1000&auto=format&fit=crop',
   },
   {
     id: '3',
     title: 'Smart Treatment Advice',
     description: 'Get actionable recommendations to protect your crops and improve yield.',
-    image: 'https://images.unsplash.com/photo-1598514983318-2f64f8f4796c',
+   
+    image:
+      'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1000&auto=format&fit=crop',
   },
 ];
 
 export default function Onboarding() {
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const handleNext = () => {
@@ -45,20 +51,21 @@ export default function Onboarding() {
         animated: true,
       });
     } else {
-      router.replace('/(auth)/login');
+      router.replace('/(auth)/register');
     }
   };
 
   const handleSkip = () => {
-    router.replace('/(auth)/login');
+    router.replace('/(auth)/register');
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
+      {/* Skip Button */}
       <TouchableOpacity style={styles.skip} onPress={handleSkip}>
-        <Text style={styles.skipText}>Skip</Text>
+        <Text style={styles.skipText}>SKIP</Text>
       </TouchableOpacity>
 
       <FlatList
@@ -68,34 +75,39 @@ export default function Onboarding() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={item => item.id}
-        getItemLayout={(_, index) => ({
-          length: width,
-          offset: width * index,
-          index,
-        })}
         onMomentumScrollEnd={event => {
           const index = Math.round(event.nativeEvent.contentOffset.x / width);
           setCurrentIndex(index);
         }}
         renderItem={({ item }) => (
           <View style={styles.slide}>
-            <Image source={{ uri: item.image }} style={styles.image} />
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.description}>{item.description}</Text>
+            <View style={styles.imageContainer}>
+              <Image source={{ uri: item.image }} style={styles.image} />
+              <LinearGradient colors={['transparent', '#121212']} style={styles.imageGradient} />
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={styles.title}>{item.title}</Text>
+              <Text style={styles.description}>{item.description}</Text>
+            </View>
           </View>
         )}
       />
 
       <View style={styles.footer}>
+        {/* Progress Dots */}
         <View style={styles.dotsContainer}>
           {slides.map((_, index) => (
-            <View key={index} style={[styles.dot, currentIndex === index && styles.activeDot]} />
+            <View
+              key={index}
+              style={[styles.dot, currentIndex === index ? styles.activeDot : styles.inactiveDot]}
+            />
           ))}
         </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleNext}>
+        {/* Action Button */}
+        <TouchableOpacity style={styles.button} onPress={handleNext} activeOpacity={0.8}>
           <Text style={styles.buttonText}>
-            {currentIndex === slides.length - 1 ? 'Start Detection' : 'Next'}
+            {currentIndex === slides.length - 1 ? 'START DETECTION' : 'NEXT'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -106,72 +118,103 @@ export default function Onboarding() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f2f1c',
+    backgroundColor: '#121212', // Deep black theme
   },
   skip: {
     position: 'absolute',
     top: 60,
-    right: 20,
+    right: 25,
     zIndex: 10,
   },
   skipText: {
-    color: '#a5d6a7',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#888',
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 1.5,
   },
   slide: {
     width,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
+  },
+  imageContainer: {
+    width: width,
+    height: height * 0.55,
+    position: 'relative',
   },
   image: {
-    width: width * 0.8,
-    height: width * 0.8,
-    borderRadius: 20,
-    marginBottom: 30,
+    width: '100%',
+    height: '100%',
+  },
+  imageGradient: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    height: 150,
+  },
+  textContainer: {
+    paddingHorizontal: 40,
+    marginTop: -20,
+    alignItems: 'center',
   },
   title: {
-    fontSize: 26,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '900',
     color: '#ffffff',
     textAlign: 'center',
     marginBottom: 15,
+    letterSpacing: -0.5,
   },
   description: {
     fontSize: 16,
-    color: '#c8e6c9',
+    color: '#888',
     textAlign: 'center',
+    lineHeight: 24,
   },
   footer: {
-    padding: 25,
+    padding: 30,
+    paddingBottom: 50,
   },
   dotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 30,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#2e7d32',
-    marginHorizontal: 6,
-    opacity: 0.4,
+    height: 6,
+    borderRadius: 3,
+    marginHorizontal: 4,
+  },
+  inactiveDot: {
+    width: 6,
+    backgroundColor: '#333',
   },
   activeDot: {
-    opacity: 1,
-    width: 20,
+    width: 24,
+    backgroundColor: '#1DB954', // Spotify Green
+    shadowColor: '#1DB954',
+    shadowOpacity: 0.6,
+    shadowRadius: 5,
   },
   button: {
-    backgroundColor: '#2e7d32',
-    padding: 18,
-    borderRadius: 14,
+    backgroundColor: '#1DB954',
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#1DB954',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
   },
   buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
+    color: '#000000',
+    fontSize: 14,
     fontWeight: 'bold',
+    letterSpacing: 1,
   },
+  image: {
+    width: width, // Use Dimensions.get('window').width
+    height: height * 0.5, // Explicitly set a height
+    backgroundColor: '#1e1e1e', // Add this to see if the box is there
+  }
 });
