@@ -1,20 +1,18 @@
 import dotenv from 'dotenv';
-dotenv.config();
 import express from 'express';
-import { initDB } from './config/db.js';
-import transactionRouter from './routes/transactionRoute.js';
+import { initDB, sql } from './config/db.js';
 import rateLimiter from './middleware/rateLimiter.js';
+import transactionRouter from './routes/transactionRoute.js';
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-console.log('Loaded DB:', process.env.DATABASE_URL);
-
 app.use(rateLimiter);
 app.use(express.json());
-
-app.get('/health', (req, res) => {
-  res.send('Server healthy');
+await app.get('/health', async (req, res) => {
+  const result = await sql`SELECT NOW()`;
+  res.json(result);
 });
 
 app.use('/api/transactions', transactionRouter);
