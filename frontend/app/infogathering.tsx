@@ -1,17 +1,20 @@
-import { ArrowRight, Calendar, CloudSun, Heart, MapPin } from 'lucide-react-native';
+import { ArrowRight, Calendar, Heart, MapPin } from 'lucide-react-native';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function InfoGathering() {
   const [formData, setFormData] = useState({
     location: '',
-    plants: '',
     experience: 'Beginner',
+    farmScale: 'Home Garden',
   });
-  const [selectedSeason, setSelectedSeason] = useState('Spring'); // Default to Spring
-  const [selectedPlants, setSelectedPlants] = useState<string[]>([]);
 
-  const COMMON_PLANTS = ['Tomato', 'Rose', 'Succulents', 'Wheat', 'Potato', 'Cucumber'];
+  const [selectedSeason, setSelectedSeason] = useState('Spring');
+  const [selectedPlants, setSelectedPlants] = useState<string[]>([]);
+  const [growthStage, setGrowthStage] = useState('Vegetative');
+  const [environment, setEnvironment] = useState('Outdoor');
+
+  const COMMON_PLANTS = ['Tomato', 'Potato', 'Corn', 'Pepper', 'Apple', 'Grape'];
 
   const togglePlant = (plant: string) => {
     if (selectedPlants.includes(plant)) {
@@ -20,18 +23,17 @@ export default function InfoGathering() {
       setSelectedPlants([...selectedPlants, plant]);
     }
   };
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Personalize Your AI</Text>
-          <Text style={styles.subtitle}>Help AgroVision understand your environment.</Text>
+          <Text style={styles.subtitle}>Help AgroVision improve disease detection accuracy.</Text>
         </View>
 
-        {/* Info Cards */}
         <View style={styles.form}>
-          {/* Location & Weather Context */}
+          {/* Location */}
           <View style={styles.card}>
             <View style={styles.iconRow}>
               <MapPin color="#1DB954" size={24} />
@@ -43,26 +45,14 @@ export default function InfoGathering() {
               placeholderTextColor="#666"
               onChangeText={val => setFormData({ ...formData, location: val })}
             />
-            <Text style={styles.helperText}>Used for humidity and frost alerts.</Text>
+            <Text style={styles.helperText}>Stored for future climate-based improvements.</Text>
           </View>
-          <View style={styles.card}>
-            <View style={styles.iconRow}>
-              <CloudSun color="#1DB954" size={24} />
-              <Text style={styles.cardTitle}>Current Weather</Text>
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="In C*"
-              placeholderTextColor="#666"
-              onChangeText={val => setFormData({ ...formData, location: val })}
-            />
-            <Text style={styles.helperText}>Used for humidity and frost alerts.</Text>
-          </View>
+
           {/* Plant Types */}
           <View style={styles.card}>
             <View style={styles.iconRow}>
               <Heart color="#1DB954" size={24} />
-              <Text style={styles.cardTitle}>Your Plants</Text>
+              <Text style={styles.cardTitle}>Select Your Crops</Text>
             </View>
 
             <View style={styles.chipRow}>
@@ -75,7 +65,7 @@ export default function InfoGathering() {
                     activeOpacity={0.8}
                     style={[styles.chip, isSelected && styles.activeChip]}
                   >
-                    <Text style={[styles.chipText, isSelected && styles.activeChip]}>{plant}</Text>
+                    <Text style={styles.chipText}>{plant}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -84,11 +74,61 @@ export default function InfoGathering() {
             <Text style={styles.helperText}>
               {selectedPlants.length > 0
                 ? `AI tuned for: ${selectedPlants.join(', ')}`
-                : 'Select your crops for better accuracy'}
+                : 'Select crops to match trained dataset classes'}
             </Text>
           </View>
 
-          {/* Season / Timing */}
+          {/* Growth Stage */}
+          <View style={styles.card}>
+            <View style={styles.iconRow}>
+              <Calendar color="#1DB954" size={24} />
+              <Text style={styles.cardTitle}>Growth Stage</Text>
+            </View>
+            <View style={styles.chipRow}>
+              {['Seedling', 'Vegetative', 'Flowering', 'Fruiting'].map(stage => {
+                const isActive = growthStage === stage;
+                return (
+                  <TouchableOpacity
+                    key={stage}
+                    onPress={() => setGrowthStage(stage)}
+                    activeOpacity={0.8}
+                    style={[styles.chip, isActive && styles.activeChip]}
+                  >
+                    <Text style={styles.chipText}>{stage}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.helperText}>
+              Helps refine disease likelihood by lifecycle stage.
+            </Text>
+          </View>
+
+          {/* Environment */}
+          <View style={styles.card}>
+            <View style={styles.iconRow}>
+              <Calendar color="#1DB954" size={24} />
+              <Text style={styles.cardTitle}>Environment</Text>
+            </View>
+            <View style={styles.chipRow}>
+              {['Indoor', 'Outdoor'].map(env => {
+                const isActive = environment === env;
+                return (
+                  <TouchableOpacity
+                    key={env}
+                    onPress={() => setEnvironment(env)}
+                    activeOpacity={0.8}
+                    style={[styles.chip, isActive && styles.activeChip]}
+                  >
+                    <Text style={styles.chipText}>{env}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.helperText}>Useful for future dataset expansion.</Text>
+          </View>
+
+          {/* Season */}
           <View style={styles.card}>
             <View style={styles.iconRow}>
               <Calendar color="#1DB954" size={24} />
@@ -96,27 +136,15 @@ export default function InfoGathering() {
             </View>
             <View style={styles.chipRow}>
               {['Spring', 'Summer', 'Fall', 'Winter'].map(s => {
-                // Check if this specific chip is the one in state
                 const isActive = selectedSeason === s;
-
                 return (
                   <TouchableOpacity
                     key={s}
-                    onPress={() => setSelectedSeason(s)} // Set the active season on press
+                    onPress={() => setSelectedSeason(s)}
                     activeOpacity={0.8}
-                    style={[
-                      styles.chip,
-                      isActive && styles.activeChip, // Apply green border/bg if active
-                    ]}
+                    style={[styles.chip, isActive && styles.activeChip]}
                   >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        isActive && styles.activeChip, // Apply green text if active
-                      ]}
-                    >
-                      {s}
-                    </Text>
+                    <Text style={styles.chipText}>{s}</Text>
                   </TouchableOpacity>
                 );
               })}

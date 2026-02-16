@@ -1,9 +1,10 @@
-import { useSignIn, useSignUp, useAuth } from '@clerk/clerk-expo';
+import { useAuth, useSignIn, useSignUp } from '@clerk/clerk-expo';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Apple, Facebook, Github, Leaf, Lock, Mail, ArrowRight } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { Apple, ArrowRight, Facebook, Github, Leaf, Lock, Mail } from 'lucide-react-native';
+import { useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
@@ -13,7 +14,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -33,7 +33,7 @@ const Register = () => {
   const [isLogin, setIsLogin] = useState(false);
   const [pendingVerification, setPendingVerification] = useState(false);
 
-  // NEW: UI error state
+  // email verification bitch & UI error state
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmError, setConfirmError] = useState('');
