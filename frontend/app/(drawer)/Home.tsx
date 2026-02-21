@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 
 function Home() {
-  const { isLoaded, isSignedIn, userId, signOut } = useAuth();
+  const { isLoaded, isSignedIn, userId, signOut, getToken } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -31,14 +31,6 @@ function Home() {
       >
         <ActivityIndicator size="large" color="#1DB954" />
         <Text style={{ color: 'white', marginTop: 16 }}>Loading...</Text>
-        <TouchableOpacity>
-          <Text
-            style={{ color: '#ff4d4f', marginTop: 16 }}
-            onPress={() => router.replace('/(auth)/register')}
-          >
-            Redirect to Sign In
-          </Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -87,6 +79,68 @@ function Home() {
         style={{ padding: 12 }}
       >
         <Text style={{ color: '#ff4d4f', fontSize: 16 }}>Sign Out</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={async () => {
+          try {
+            const token = await getToken();
+            console.log('Token length:', token ? token.length : 'NO TOKEN');
+
+            if (!token) {
+              console.log('No token - not signed in');
+              return;
+            }
+
+            console.log('Sending request...');
+
+            const res = await fetch('http://localhost:5001/api/users/me', {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+
+            console.log('Status code:', res.status);
+
+            if (!res.ok) {
+              const text = await res.text();
+              console.log('Error response:', text);
+              return;
+            }
+
+            const data = await res.json();
+            console.log('Success - user data:', data);
+          } catch (err) {
+            console.log('Fetch error:', err.message);
+          }
+        }}
+        style={{ backgroundColor: '#333', padding: 16, borderRadius: 12, marginTop: 20 }}
+      >
+        <Text style={{ color: 'white' }}>Test Backend Call</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={async () => {
+          try {
+            const token = await getToken();
+            if (!token) {
+              console.log('No token');
+              return;
+            }
+
+            const res = await fetch('http://localhost:5001/api/debug/users', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+
+            const data = await res.json();
+            console.log('All users from DB:', data);
+          } catch (err) {
+            console.log('Error:', err.message);
+          }
+        }}
+        style={{ backgroundColor: '#555', padding: 16, borderRadius: 12, marginTop: 20 }}
+      >
+        <Text style={{ color: 'white' }}>Show All Users from DB</Text>
       </TouchableOpacity>
     </View>
   );

@@ -68,8 +68,16 @@ export async function initDB() {
     await sql`CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_detection_history_user_id ON detection_history(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`;
-
-    console.log('Database tables created successfully');
+    // Temporary test insert
+    //     const testClerkId = 'test_clerk_manual';
+    //     const testInsert = await sql`
+    //   INSERT INTO users (clerk_id, email)
+    //   VALUES (${testClerkId}, 'manual@test.com')
+    //   ON CONFLICT (clerk_id) DO NOTHING
+    //   RETURNING *;
+    // `;
+    //     console.log('Manual test insert result:', testInsert);
+    //     console.log('Database tables created successfully');
   } catch (error) {
     console.error('Database initialization failed:');
     console.error(error);
