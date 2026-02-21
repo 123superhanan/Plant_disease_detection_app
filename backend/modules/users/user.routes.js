@@ -6,10 +6,8 @@ const router = Router();
 
 router.get('/me', requireAuth, async (req, res) => {
   try {
-    const clerkId = req.auth.userId;
-
-    const user = await getOrCreateUser(clerkId);
-
+    const clerkId = req.auth.userId; // From Clerk JWT
+    const user = await getOrCreateUser(clerkId); // This inserts into Neon if not exists
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });

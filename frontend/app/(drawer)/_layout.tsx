@@ -1,16 +1,15 @@
 import { useAuth, useUser } from '@clerk/clerk-expo';
-import { Ionicons } from '@expo/vector-icons'; // Assuming you use Expo Icons
+import { Ionicons } from '@expo/vector-icons';
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { Drawer } from 'expo-router/drawer';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 function CustomDrawerContent(props: any) {
   const { signOut } = useAuth();
-  const { user } = useUser(); // Grab user info for the header
+  const { user } = useUser();
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* 1. Profile Header - The "Spotify" User Branding */}
       <View style={styles.headerSection}>
         <Image source={{ uri: user?.imageUrl }} style={styles.profileImage} />
         <View>

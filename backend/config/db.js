@@ -1,79 +1,78 @@
 import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
+
 dotenv.config();
 
 export const sql = neon(process.env.DATABASE_URL);
 
 export async function initDB() {
   try {
-    // USERS
+    // Drop tables in reverse order to avoid dependency errors
+    // Run this ONLY ONCE when you want to reset everything
+    // Comment out these 4 lines after first successful run
+    await sql`DROP TABLE IF EXISTS notifications CASCADE;`;
+    await sql`DROP TABLE IF EXISTS detection_history CASCADE;`;
+    await sql`DROP TABLE IF EXISTS user_profiles CASCADE;`;
+    await sql`DROP TABLE IF EXISTS users CASCADE;`;
+
+    // Users table (synced with Clerk)
     await sql`
       CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        clerk_id VARCHAR(255) UNIQUE NOT NULL,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        clerk_id TEXT UNIQUE NOT NULL,
+        email TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      );
     `;
 
-    // USER CONTEXT (info gathering page)
+    // User profile with context info
     await sql`
-      CREATE TABLE IF NOT EXISTS ai_context (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        age INTEGER,
-        gender VARCHAR(50),
-        goal VARCHAR(255),
-        condition VARCHAR(255),
-        extra_notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      CREATE TABLE IF NOT EXISTS user_profiles (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+        location TEXT,
+        plant_phases TEXT[],
+        special_plants TEXT[],
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `;
 
-    // USER IMAGES (inference records)
+    // Detection history
     await sql`
-      CREATE TABLE IF NOT EXISTS images (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        context_id INTEGER REFERENCES ai_context(id) ON DELETE SET NULL,
+      CREATE TABLE IF NOT EXISTS detection_history (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
         image_url TEXT NOT NULL,
-        predicted_label VARCHAR(255),
-        confidence DECIMAL(6,5),
+        disease_detected TEXT,
+        confidence DECIMAL(5,4),
         prediction JSONB,
-        status VARCHAR(50) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      );
     `;
 
-    // NOTIFICATIONS
+    // Notifications
     await sql`
       CREATE TABLE IF NOT EXISTS notifications (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        type VARCHAR(50),               -- system, result, alert
-        title VARCHAR(255) NOT NULL,
-        message TEXT NOT NULL,
-        icon VARCHAR(100),
-        color VARCHAR(20),
-        is_read BOOLEAN DEFAULT false,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        type TEXT,
+        title TEXT,
+        message TEXT,
+        icon TEXT,
+        color TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      );
     `;
 
-    // TRAINING DATA METADATA (offline dataset tracking)
-    await sql`
-      CREATE TABLE IF NOT EXISTS training_samples (
-        id SERIAL PRIMARY KEY,
-        source VARCHAR(255),            -- kaggle, plantvillage
-        image_url TEXT NOT NULL,
-        label VARCHAR(255) NOT NULL,
-        metadata JSONB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `;
+    // Add useful indexes
+    await sql`CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_detection_history_user_id ON detection_history(user_id);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`;
 
-    console.log('AI Database initialized');
+    console.log('Database tables created successfully');
   } catch (error) {
-    console.error('DB init error:', error);
+    console.error('Database initialization failed:');
+    console.error(error);
     process.exit(1);
   }
 }

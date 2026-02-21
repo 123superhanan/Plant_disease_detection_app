@@ -19,7 +19,7 @@ import {
 const { width } = Dimensions.get('window');
 
 const Register = () => {
-  const { isLoaded } = useAuth();
+  const { isLoaded, getToken } = useAuth();
   const { signIn, setActive: setActiveSignIn } = useSignIn();
   const { signUp, setActive: setActiveSignUp } = useSignUp();
   const router = useRouter();
@@ -33,7 +33,6 @@ const Register = () => {
   const [isLogin, setIsLogin] = useState(false);
   const [pendingVerification, setPendingVerification] = useState(false);
 
-  // email verification bitch & UI error state
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmError, setConfirmError] = useState('');
@@ -60,7 +59,13 @@ const Register = () => {
         });
 
         await setActiveSignIn({ session: result.createdSessionId });
-        router.replace('/infogathering');
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const token = await getToken();
+        console.log('Token after login:', token ? 'exists' : 'missing');
+
+        router.replace('/(drawer)/Home');
       } else {
         if (password !== confirmPassword) {
           setConfirmError('Passwords do not match');
@@ -90,6 +95,8 @@ const Register = () => {
             setPasswordError(e.longMessage || e.message);
           }
         });
+      } else {
+        console.log('Auth error:', err);
       }
     } finally {
       setLoading(false);
@@ -109,7 +116,13 @@ const Register = () => {
 
       if (signUpAttempt.status === 'complete') {
         await setActiveSignUp({ session: signUpAttempt.createdSessionId });
-        router.replace('/infogathering');
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const token = await getToken();
+        console.log('Token after verification:', token ? 'exists' : 'missing');
+
+        router.replace('/(drawer)/Home');
       }
     } catch (err: any) {
       setCodeError(err.errors?.[0]?.longMessage || 'Invalid code');
@@ -118,6 +131,7 @@ const Register = () => {
     }
   };
 
+  // The rest of your return JSX stays exactly the same
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView

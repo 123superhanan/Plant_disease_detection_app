@@ -1,6 +1,7 @@
 import { ArrowRight, Calendar, Heart, MapPin } from 'lucide-react-native';
-import { useState } from 'react';
+import { useState} from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
 
 export default function InfoGathering() {
   const [formData, setFormData] = useState({
