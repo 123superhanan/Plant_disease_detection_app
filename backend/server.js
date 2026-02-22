@@ -25,23 +25,23 @@ app.use('/api/users', userRouter);
 app.use('/api', inferenceRoutes);
 
 // Health check route - no await needed here
-app.get('/health', async (req, res) => {
-  try {
-    const result = await sql`SELECT NOW()`;
-    res.json({ status: 'ok', timestamp: result[0].now });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ status: 'error', message: 'Database connection failed' });
-  }
-});
-app.get('/api/debug/users', async (req, res) => {
-  try {
-    const users = await sql`SELECT * FROM users ORDER BY created_at DESC LIMIT 10`;
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// app.get('/health', async (req, res) => {
+//   try {
+//     const result = await sql`SELECT NOW()`;
+//     res.json({ status: 'ok', timestamp: result[0].now });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ status: 'error', message: 'Database connection failed' });
+//   }
+// });
+// app.get('/api/debug/users', async (req, res) => {
+//   try {
+//     const users = await sql`SELECT * FROM users ORDER BY created_at DESC LIMIT 10`;
+//     res.json(users);
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 initDB()
   .then(() => {
