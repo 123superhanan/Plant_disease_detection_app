@@ -38,6 +38,13 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow AgroVision to access your photos to analyze plant health.",
+          "cameraPermission": "Allow AgroVision to access your camera to scan for diseases."
+        }
       ]
     ],
     "experiments": {

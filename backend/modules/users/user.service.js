@@ -62,3 +62,24 @@ export async function getOrCreateUser(clerkId) {
     throw err;
   }
 }
+export async function getUserIdByClerkId(clerkId) {
+  const result = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+  if (result.length === 0) return null;
+  return result[0].id;
+}
+export async function upsertUserProfile(userId, data) {
+  const { location, plant_phases, special_plants } = data;
+
+  const profile = await sql`
+    INSERT INTO user_profiles (user_id, location, plant_phases, special_plants)
+    VALUES (${userId}, ${location}, ${plant_phases}, ${special_plants})
+    ON CONFLICT (user_id) DO UPDATE SET
+      location = EXCLUDED.location,
+      plant_phases = EXCLUDED.plant_phases,
+      special_plants = EXCLUDED.special_plants,
+      updated_at = CURRENT_TIMESTAMP
+    RETURNING *
+  `;
+
+  return profile[0];
+}

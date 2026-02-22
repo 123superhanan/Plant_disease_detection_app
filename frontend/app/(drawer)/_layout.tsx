@@ -5,7 +5,7 @@ import { Drawer } from 'expo-router/drawer';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 function CustomDrawerContent(props: any) {
-  const { signOut } = useAuth();
+  const { signOut, userId } = useAuth();
   const { user } = useUser();
 
   return (
@@ -14,7 +14,7 @@ function CustomDrawerContent(props: any) {
         <Image source={{ uri: user?.imageUrl }} style={styles.profileImage} />
         <View>
           <Text style={styles.userName}>{user?.fullName || 'Planter'}</Text>
-          <Text style={styles.userStatus}>Premium Expert</Text>
+          <Text style={styles.userStatus}>{userId?.slice(0, 8)}</Text>
         </View>
       </View>
 

@@ -60,9 +60,16 @@ const Register = () => {
 
         await setActiveSignIn({ session: result.createdSessionId });
 
+        // Create user in DB
+        const token = await getToken();
+        if (token) {
+          await fetch('http://localhost:5001/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
+
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        const token = await getToken();
         console.log('Token after login:', token ? 'exists' : 'missing');
 
         router.replace('/(drawer)/Home');
@@ -117,9 +124,16 @@ const Register = () => {
       if (signUpAttempt.status === 'complete') {
         await setActiveSignUp({ session: signUpAttempt.createdSessionId });
 
+        // Create user in DB
+        const token = await getToken();
+        if (token) {
+          await fetch('http://localhost:5001/api/users/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
+
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        const token = await getToken();
         console.log('Token after verification:', token ? 'exists' : 'missing');
 
         router.replace('/(drawer)/Home');

@@ -1,9 +1,8 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
-import { initDB, sql } from './config/db.js';
+import { initDB } from './config/db.js';
 import rateLimiter from './middleware/rateLimiter.js';
-import inferenceRoutes from './modules/inference/inference.routes.js';
 import userRouter from './modules/users/user.routes.js';
 dotenv.config();
 
@@ -22,7 +21,6 @@ app.use(rateLimiter);
 app.use(express.json());
 
 app.use('/api/users', userRouter);
-app.use('/api', inferenceRoutes);
 
 // Health check route - no await needed here
 // app.get('/health', async (req, res) => {

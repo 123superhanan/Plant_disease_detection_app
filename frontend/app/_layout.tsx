@@ -1,7 +1,7 @@
-import { Stack } from 'expo-router';
 import { ClerkProvider } from '@clerk/clerk-expo';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokenCache } from '@clerk/clerk-expo/token-cache';
+import { Stack } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 export default function RootLayout() {
   return (
     <ClerkProvider
@@ -15,6 +15,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="infogathering" />
           <Stack.Screen name="(drawer)" />
+          <Stack.Screen name="Upload" />
         </Stack>
       </SafeAreaProvider>
     </ClerkProvider>

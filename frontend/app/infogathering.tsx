@@ -1,9 +1,13 @@
+import { useAuth } from '@clerk/clerk-expo';
+import { useRouter } from 'expo-router';
 import { ArrowRight, Calendar, Heart, MapPin } from 'lucide-react-native';
-import { useState} from 'react';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-
 export default function InfoGathering() {
+  const { getToken } = useAuth();
+  const router = useRouter();
+
   const [formData, setFormData] = useState({
     location: '',
     experience: 'Beginner',
@@ -22,6 +26,41 @@ export default function InfoGathering() {
       setSelectedPlants(selectedPlants.filter(p => p !== plant));
     } else {
       setSelectedPlants([...selectedPlants, plant]);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        console.log('No token - user not signed in');
+        return;
+      }
+
+      const payload = {
+        location: formData.location,
+        plant_phases: [growthStage, environment, selectedSeason], // array
+        special_plants: selectedPlants,
+      };
+
+      const res = await fetch('http://localhost:5001/api/users/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        console.log('Profile saved');
+        router.replace('/(drawer)/Home');
+      } else {
+        const errorText = await res.text();
+        console.log('Save failed:', errorText);
+      }
+    } catch (err) {
+      console.log('Error saving profile:', err.message);
     }
   };
 
@@ -153,7 +192,7 @@ export default function InfoGathering() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.nextBtn}>
+        <TouchableOpacity style={styles.nextBtn} onPress={handleSave}>
           <Text style={styles.nextBtnText}>COMPLETE SETUP</Text>
           <ArrowRight color="black" size={20} />
         </TouchableOpacity>
@@ -162,6 +201,7 @@ export default function InfoGathering() {
   );
 }
 
+// styles stay the same
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   scroll: { padding: 25, paddingTop: 60 },
@@ -196,8 +236,8 @@ const styles = StyleSheet.create({
     borderColor: '#333',
   },
   activeChip: {
-    backgroundColor: 'rgba(29, 185, 84, 0.1)', // Subtle green background
-    borderColor: '#1DB954', // Bright neon border
+    backgroundColor: 'rgba(29, 185, 84, 0.1)',
+    borderColor: '#1DB954',
   },
   chipText: { color: '#888', fontSize: 13 },
   nextBtn: {
