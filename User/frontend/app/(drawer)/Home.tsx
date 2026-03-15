@@ -11,8 +11,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SafeAreaView } from 'react-native-safe-area-context';
+import GardenMap from '../components/Map';
 function Home() {
   const { isLoaded, isSignedIn, signOut, getToken } = useAuth();
   const { user } = useUser(); // Get user details like name
@@ -33,7 +34,6 @@ function Home() {
       const token = await getToken();
       if (!token) return;
 
-      
       const res = await fetch('http://localhost:5001/api/users/profile-summary', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -78,12 +78,12 @@ function Home() {
         {/* Profile Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Garden Overview</Text>
+            S<Text style={styles.cardTitle}>Garden Overview</Text>
             <TouchableOpacity onPress={() => router.push('/infogathering')}>
               <Text style={styles.editLink}>Edit</Text>
             </TouchableOpacity>
           </View>
-
+          <GardenMap location={summary?.location} />
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <MapPin color="#1DB954" size={20} />
