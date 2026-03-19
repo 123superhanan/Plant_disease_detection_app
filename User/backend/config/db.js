@@ -3,7 +3,13 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export const sql = neon(process.env.DATABASE_URL);
+export const sql = neon(process.env.DATABASE_URL, {
+  fullResults: true, // optional: returns full result objects
+  fetchOptions: {
+    // helps with Neon timeouts
+    next: { revalidate: 0 },
+  },
+});
 
 export async function initDB() {
   try {
