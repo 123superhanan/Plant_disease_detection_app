@@ -1,28 +1,28 @@
-// inference/inference.js (example)
-import * as tf from '@tensorflow/tfjs-node'; // or tfjs-node-gpu
 
-let model;
-(async () => {
-  model = await tf.loadLayersModel('file://./models/plant_model/model.json');
-})();
+// import * as tf from '@tensorflow/tfjs-node'; // or tfjs-node-gpu
 
-export async function runRealInference(buffer) {
-  const tensor = tf.node
-    .decodeImage(buffer)
-    .resizeNearestNeighbor([224, 224])
-    .toFloat()
-    .div(255.0)
-    .expandDims(0);
+// let model;
+// (async () => {
+//   model = await tf.loadLayersModel('file://./models/plant_model/model.json');
+// })();
 
-  const pred = model.predict(tensor);
-  const data = await pred.data();
-  tensor.dispose();
-  pred.dispose();
+// export async function runRealInference(buffer) {
+//   const tensor = tf.node
+//     .decodeImage(buffer)
+//     .resizeNearestNeighbor([224, 224])
+//     .toFloat()
+//     .div(255.0)
+//     .expandDims(0);
 
-  const maxIdx = data.indexOf(Math.max(...data));
-  return {
-    label: classNames[maxIdx],
-    confidence: data[maxIdx],
-    risk_score: 1 - data[maxIdx], // example
-  };
-}
+//   const pred = model.predict(tensor);
+//   const data = await pred.data();
+//   tensor.dispose();
+//   pred.dispose();
+
+//   const maxIdx = data.indexOf(Math.max(...data));
+//   return {
+//     label: classNames[maxIdx],
+//     confidence: data[maxIdx],
+//     risk_score: 1 - data[maxIdx], // example
+//   };
+// }

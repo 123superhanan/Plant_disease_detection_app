@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient'; // Add this for the premium feel
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   Dimensions,
@@ -107,6 +107,7 @@ export default function Onboarding() {
         {/* Action Button */}
         <TouchableOpacity style={styles.button} onPress={handleNext} activeOpacity={0.8}>
           <Text style={styles.buttonText}>
+            <Link href="/(auth)/register" />
             {currentIndex === slides.length - 1 ? 'START DETECTION' : 'NEXT'}
           </Text>
         </TouchableOpacity>
