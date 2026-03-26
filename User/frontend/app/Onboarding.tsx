@@ -19,14 +19,14 @@ const slides = [
     id: '1',
     title: 'Scan Your Plant',
     description: 'Capture or upload a leaf image to detect plant diseases using AI.',
-   
+
     image: 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6',
   },
   {
     id: '2',
     title: 'AI Disease Detection',
     description: 'Our deep learning model analyzes leaf patterns and predicts disease instantly.',
-   
+
     image:
       'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=1000&auto=format&fit=crop',
   },
@@ -34,7 +34,7 @@ const slides = [
     id: '3',
     title: 'Smart Treatment Advice',
     description: 'Get actionable recommendations to protect your crops and improve yield.',
-   
+
     image:
       'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1000&auto=format&fit=crop',
   },
@@ -217,5 +217,5 @@ const styles = StyleSheet.create({
     width: width, // Use Dimensions.get('window').width
     height: height * 0.5, // Explicitly set a height
     backgroundColor: '#1e1e1e', // Add this to see if the box is there
-  }
+  },
 });

@@ -1,85 +1,82 @@
 import { sql } from '../../config/db.js';
 
-// export async function getOrCreateUser(clerkId) {
-//   console.log('getOrCreateUser called for clerkId:', clerkId);
-
-//   try {
-//     const existing = await sql`SELECT * FROM users WHERE clerk_id = ${clerkId} LIMIT 1`;
-//     console.log('Existing query rows:', existing.length);
-
-//     if (existing.length > 0) {
-//       return existing[0];
-//     }
-
-//     console.log('Creating new user');
-//     const inserted = await sql`
-//       INSERT INTO users (clerk_id)
-//       VALUES (${clerkId})
-//       RETURNING *
-//     `;
-//     console.log('Inserted row:', inserted[0]);
-
-//     return inserted[0];
-//   } catch (err) {
-//     console.error('SQL error in getOrCreateUser:');
-//     console.error('Message:', err.message);
-//     console.error('Code:', err.code);
-//     console.error('Detail:', err.detail);
-//     throw err;
-//   }
-// }
 export async function getOrCreateUser(clerkId) {
-  console.log('getOrCreateUser started - clerkId:', clerkId, 'type:', typeof clerkId);
-
-  const existing = await sql`SELECT * FROM users WHERE clerk_id = ${clerkId} LIMIT 1`;
-  console.log('Found existing rows:', existing.length);
-
-  if (existing.length > 0) {
-    console.log('Returning existing user:', existing[0].id);
-    return existing[0];
-  }
-
-  console.log('No user found - starting INSERT');
+  if (!clerkId) throw new Error('clerkId is required');
 
   try {
-    const inserted = await sql`
-      INSERT INTO users (clerk_id, email)
-      VALUES (${clerkId}, ${null})
-      RETURNING id, clerk_id, email, created_at
+    // Check for existing user
+    const existing = await sql`
+      SELECT id, clerk_id, email, created_at, updated_at
+      FROM users WHERE clerk_id = ${clerkId} LIMIT 1
     `;
 
-    console.log('INSERT completed - rows affected:', inserted.length);
-
-    if (inserted.length === 0) {
-      console.log('INSERT returned zero rows - commit may have failed');
-      throw new Error('Insert failed - no row returned');
+    if (existing.length > 0) {
+      console.log('Existing user found:', existing[0]);
+      return existing[0];
     }
 
-    console.log('New user created:', inserted[0]);
-    return inserted[0];
+    // Create new user
+    console.log('Creating new user for clerkId:', clerkId);
+    const inserted = await sql`
+      INSERT INTO users (clerk_id, email, created_at)
+      VALUES (${clerkId}, NULL, NOW())
+      RETURNING id, clerk_id, email, created_at, updated_at
+    `;
+
+    if (inserted.length > 0) {
+      console.log('New user created:', inserted[0]);
+      return inserted[0];
+    }
+
+    // If we get here, something went wrong with the insert
+    console.error('Insert succeeded but no user was returned');
+
+    // Try one more time to fetch the user
+    const fallback = await sql`
+      SELECT id, clerk_id, email, created_at, updated_at
+      FROM users WHERE clerk_id = ${clerkId} LIMIT 1
+    `;
+
+    if (fallback.length > 0) {
+      return fallback[0];
+    }
+
+    // If still no user, throw an error
+    throw new Error(`Failed to create or retrieve user for clerkId: ${clerkId}`);
   } catch (err) {
-    console.error('Insert error:', err.message);
+    console.error('getOrCreateUser error:', err.message);
+    console.error('Stack:', err.stack);
     throw err;
   }
 }
-export async function getUserIdByClerkId(clerkId) {
-  const result = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
-  if (result.length === 0) return null;
-  return result[0].id;
-}
+
 export async function upsertUserProfile(userId, data) {
-  const { location, plant_phases, special_plants } = data;
+  const { location, plant_phases, special_plants } = data || {};
 
-  const profile = await sql`
-    INSERT INTO user_profiles (user_id, location, plant_phases, special_plants)
-    VALUES (${userId}, ${location}, ${plant_phases}, ${special_plants})
-    ON CONFLICT (user_id) DO UPDATE SET
-      location = EXCLUDED.location,
-      plant_phases = EXCLUDED.plant_phases,
-      special_plants = EXCLUDED.special_plants,
-      updated_at = CURRENT_TIMESTAMP
-    RETURNING *
+  try {
+    const profile = await sql`
+      INSERT INTO user_profiles (user_id, location, plant_phases, special_plants, updated_at)
+      VALUES (${userId}, ${location}, ${plant_phases}, ${special_plants}, NOW())
+      ON CONFLICT (user_id) DO UPDATE SET
+        location = EXCLUDED.location,
+        plant_phases = EXCLUDED.plant_phases,
+        special_plants = EXCLUDED.special_plants,
+        updated_at = NOW()
+      RETURNING *
+    `;
+
+    return profile[0];
+  } catch (err) {
+    console.error('upsertUserProfile error:', err.message);
+    throw err;
+  }
+}
+
+export async function getUserIdByClerkId(clerkId) {
+  if (!clerkId) return null;
+
+  const result = await sql`
+    SELECT id FROM users WHERE clerk_id = ${clerkId} LIMIT 1
   `;
-
-  return profile[0];
+  return result && result.length > 0 ? result[0].id : null;
 }

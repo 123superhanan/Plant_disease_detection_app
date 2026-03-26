@@ -33,17 +33,20 @@ export default function InfoGathering() {
     try {
       const token = await getToken();
       if (!token) {
-        console.log('No token - user not signed in');
+        alert('Please sign in again');
         return;
       }
 
       const payload = {
         location: formData.location,
-        plant_phases: [growthStage, environment, selectedSeason], // array
+        plant_phases: [growthStage, environment, selectedSeason],
         special_plants: selectedPlants,
       };
 
+      console.log('Sending payload:', payload);
+
       const res = await fetch('http://localhost:5001/api/users/profile', {
+        // ← Change localhost to your IP
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -52,15 +55,25 @@ export default function InfoGathering() {
         body: JSON.stringify(payload),
       });
 
+      const responseText = await res.text();
+      console.log('Response status:', res.status);
+      console.log('Response body:', responseText);
+
       if (res.ok) {
-        console.log('Profile saved');
+        alert('Profile saved successfully!');
         router.replace('/(drawer)/Home');
       } else {
-        const errorText = await res.text();
-        console.log('Save failed:', errorText);
+        let errorMsg = 'Failed to save profile';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMsg = errorData.message || errorMsg;
+        } catch {}
+
+        alert(`Save failed: ${errorMsg}`);
       }
     } catch (err) {
-      console.log('Error saving profile:', err.message);
+      console.error('Network error:', err);
+      alert('Network error. Make sure backend is running.');
     }
   };
 

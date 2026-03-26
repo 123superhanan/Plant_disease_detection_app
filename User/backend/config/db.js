@@ -23,13 +23,14 @@ export async function initDB() {
 
     // Users table (synced with Clerk)
     await sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        clerk_id TEXT UNIQUE NOT NULL,
-        email TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `;
+  CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clerk_id TEXT UNIQUE NOT NULL,
+    email TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP   -- ← Add this line
+  );
+`;
 
     // User profile with context info
     await sql`

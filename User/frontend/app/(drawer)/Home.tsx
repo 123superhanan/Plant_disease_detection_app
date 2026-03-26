@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import GardenMap from '../components/Map';
+
 function Home() {
   const { isLoaded, isSignedIn, signOut, getToken } = useAuth();
   const { user } = useUser(); // Get user details like name
@@ -83,7 +83,7 @@ function Home() {
               <Text style={styles.editLink}>Edit</Text>
             </TouchableOpacity>
           </View>
-          <GardenMap location={summary?.location} />
+          
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <MapPin color="#1DB954" size={20} />
