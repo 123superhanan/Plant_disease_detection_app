@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { sql } from '../../config/db.js';
 import { requireAuth } from '../../middleware/clerk.middleware.js';
-import { getOrCreateUser, getUserIdByClerkId, upsertUserProfile } from './user.service.js';
+import { getOrCreateUser, upsertUserProfile } from './user.service.js';
 
 const router = Router();
 
@@ -97,21 +97,23 @@ router.get('/profile-summary', requireAuth, async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const result = await sql`
-      SELECT 
-        u.id AS user_id,
-        u.clerk_id,
-        u.email,
-        up.location,
-        up.plant_phases,
-        up.special_plants,
-        up.updated_at
-      FROM users u
-      LEFT JOIN user_profiles up ON u.id = up.user_id
-      WHERE u.clerk_id = ${clerkId}
-      LIMIT 1
-    `;
+    const user = await getOrCreateUser(clerkId);
 
+    const result = await sql`
+SELECT 
+  u.id AS user_id,
+  u.clerk_id,
+  u.email,
+  up.location,
+  up.plant_phases,
+  up.special_plants,
+  up.updated_at
+FROM users u
+LEFT JOIN user_profiles up 
+ON u.id = up.user_id
+WHERE u.id = ${user.id}
+LIMIT 1
+`;
     if (result.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }

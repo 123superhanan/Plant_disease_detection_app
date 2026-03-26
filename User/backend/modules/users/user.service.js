@@ -53,11 +53,20 @@ export async function getOrCreateUser(clerkId) {
 export async function upsertUserProfile(userId, data) {
   const { location, plant_phases, special_plants } = data || {};
 
+  if (!userId) {
+    throw new Error('userId is required for profile');
+  }
+
   try {
+    console.log('Upserting profile for:', userId);
+
     const profile = await sql`
-      INSERT INTO user_profiles (user_id, location, plant_phases, special_plants, updated_at)
-      VALUES (${userId}, ${location}, ${plant_phases}, ${special_plants}, NOW())
-      ON CONFLICT (user_id) DO UPDATE SET
+      INSERT INTO user_profiles 
+      (user_id, location, plant_phases, special_plants, updated_at)
+      VALUES 
+      (${userId}, ${location}, ${plant_phases}, ${special_plants}, NOW())
+      ON CONFLICT (user_id) 
+      DO UPDATE SET
         location = EXCLUDED.location,
         plant_phases = EXCLUDED.plant_phases,
         special_plants = EXCLUDED.special_plants,
@@ -65,9 +74,11 @@ export async function upsertUserProfile(userId, data) {
       RETURNING *
     `;
 
+    console.log('Profile saved:', profile[0]);
+
     return profile[0];
   } catch (err) {
-    console.error('upsertUserProfile error:', err.message);
+    console.error('upsertUserProfile error:', err);
     throw err;
   }
 }
