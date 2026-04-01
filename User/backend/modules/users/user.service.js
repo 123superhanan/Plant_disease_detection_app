@@ -4,52 +4,56 @@ export async function getOrCreateUser(clerkId) {
   if (!clerkId) throw new Error('clerkId is required');
 
   try {
-    // Check for existing user
-    const existing = await sql`
-      SELECT id, clerk_id, email, created_at, updated_at
-      FROM users WHERE clerk_id = ${clerkId} LIMIT 1
-    `;
+    console.log('🔄 getOrCreateUser started for clerkId:', clerkId);
 
-    if (existing.length > 0) {
-      console.log('Existing user found:', existing[0]);
-      return existing[0];
-    }
-
-    // Create new user
-    console.log('Creating new user for clerkId:', clerkId);
-    const inserted = await sql`
-      INSERT INTO users (clerk_id, email, created_at)
-      VALUES (${clerkId}, NULL, NOW())
+    // Force updated_at so DO UPDATE always triggers and Neon returns the row
+    let result = await sql`
+      INSERT INTO users (clerk_id, email, created_at, updated_at)
+      VALUES (${clerkId}, NULL, NOW(), NOW())
+      ON CONFLICT (clerk_id) 
+      DO UPDATE SET updated_at = NOW()
       RETURNING id, clerk_id, email, created_at, updated_at
     `;
 
-    if (inserted.length > 0) {
-      console.log('New user created:', inserted[0]);
-      return inserted[0];
+    // Handle Neon fullResults: true → result.rows
+    const rows = result?.rows ?? result ?? [];
+
+    if (rows.length > 0) {
+      const user = rows[0];
+      console.log('✅ User from upsert:', {
+        id: user.id,
+        clerk_id: user.clerk_id,
+        created_at: user.created_at,
+      });
+      return user;
     }
 
-    // If we get here, something went wrong with the insert
-    console.error('Insert succeeded but no user was returned');
-
-    // Try one more time to fetch the user
-    const fallback = await sql`
-      SELECT id, clerk_id, email, created_at, updated_at
-      FROM users WHERE clerk_id = ${clerkId} LIMIT 1
+    // Rare fallback
+    console.log('⚠️ Upsert returned no rows → fallback SELECT');
+    result = await sql`
+      SELECT id, clerk_id, email, created_at, updated_at 
+      FROM users 
+      WHERE clerk_id = ${clerkId} 
+      LIMIT 1
     `;
 
-    if (fallback.length > 0) {
-      return fallback[0];
+    const fallbackRows = result?.rows ?? result ?? [];
+
+    if (fallbackRows.length > 0) {
+      const user = fallbackRows[0];
+      console.log('✅ User from fallback:', user);
+      return user;
     }
 
-    // If still no user, throw an error
-    throw new Error(`Failed to create or retrieve user for clerkId: ${clerkId}`);
+    console.error('❌ Failed to get or create user for clerkId:', clerkId);
+    throw new Error(`Failed to get or create user for clerkId: ${clerkId}`);
   } catch (err) {
-    console.error('getOrCreateUser error:', err.message);
+    console.error('❌ getOrCreateUser error:', err.message);
+    if (err.code) console.error('Error code:', err.code);
     console.error('Stack:', err.stack);
     throw err;
   }
 }
-
 export async function upsertUserProfile(userId, data) {
   const { location, plant_phases, special_plants } = data || {};
 
@@ -58,9 +62,13 @@ export async function upsertUserProfile(userId, data) {
   }
 
   try {
-    console.log('Upserting profile for:', userId);
+    console.log('📝 Upserting profile for userId:', userId, 'Data:', {
+      location,
+      plant_phases: plant_phases?.length,
+      special_plants: special_plants?.length,
+    });
 
-    const profile = await sql`
+    const result = await sql`
       INSERT INTO user_profiles 
       (user_id, location, plant_phases, special_plants, updated_at)
       VALUES 
@@ -74,11 +82,17 @@ export async function upsertUserProfile(userId, data) {
       RETURNING *
     `;
 
-    console.log('Profile saved:', profile[0]);
+    const rows = result?.rows ?? result ?? [];
+    const profile = rows[0];
 
-    return profile[0];
+    if (profile) {
+      console.log('✅ Profile saved successfully for user:', userId);
+      return profile;
+    }
+
+    throw new Error('Profile upsert returned no data');
   } catch (err) {
-    console.error('upsertUserProfile error:', err);
+    console.error('upsertUserProfile error:', err.message);
     throw err;
   }
 }

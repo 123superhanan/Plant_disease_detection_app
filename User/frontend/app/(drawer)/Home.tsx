@@ -1,6 +1,17 @@
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
-import { Camera, ChevronRight, Leaf, LogOut, MapPin, Sprout, User } from 'lucide-react-native';
+import {
+  Camera,
+  ChevronRight,
+  Leaf,
+  LogOut,
+  MapPin,
+  Sprout,
+  User,
+  Activity,
+  Calendar,
+  AlertCircle,
+} from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,13 +21,15 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Dimensions,
 } from 'react-native';
-
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { width } = Dimensions.get('window');
 
 function Home() {
   const { isLoaded, isSignedIn, signOut, getToken } = useAuth();
-  const { user } = useUser(); // Get user details like name
+  const { user } = useUser();
   const router = useRouter();
 
   const [summary, setSummary] = useState(null);
@@ -33,17 +46,15 @@ function Home() {
     try {
       const token = await getToken();
       if (!token) return;
-
       const res = await fetch('http://localhost:5001/api/users/profile-summary', {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (res.ok) {
         const data = await res.json();
         setSummary(data);
       }
     } catch (err) {
-      console.log('Summary fetch error:', err.message);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -60,178 +71,218 @@ function Home() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header Section */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Good Morning,</Text>
-            <Text style={styles.username}>{user?.firstName || 'Gardener'}</Text>
+
+      <View style={styles.topBar}>
+        <View>
+          <Text style={styles.brandText}>
+            AgriVision <Text style={styles.aiText}>AI</Text>
+          </Text>
+          <Text style={styles.dateText}>
+            {new Date().toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.profileCircle}
+          onPress={() => router.push('/(drawer)/profile')}
+        >
+          <User color="#1DB954" size={20} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Welcome Header */}
+        <View style={styles.welcomeSection}>
+          <Text style={styles.greetingText}>Hello, {user?.firstName || 'Gardener'}</Text>
+          <Text style={styles.subGreeting}>Your garden is active today.</Text>
+        </View>
+
+        {/* Bento Grid Stats */}
+        <View style={styles.gridContainer}>
+          <View style={[styles.gridItem, { width: '100%' }]}>
+            <View style={styles.itemHeader}>
+              <MapPin color="#1DB954" size={18} />
+              <Text style={styles.itemTitle}>Location</Text>
+            </View>
+            <Text style={styles.itemValue}>{summary?.location || 'Set Location'}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.profileCircle}
-            onPress={() => router.push('/(drawer)/profile')}
-          >
-            <User color="#1DB954" size={24} />
+
+          <View style={styles.gridItem}>
+            <View style={styles.itemHeader}>
+              <Sprout color="#1DB954" size={18} />
+              <Text style={styles.itemTitle}>Crops</Text>
+            </View>
+            <Text style={styles.itemValue}>{summary?.special_plants?.length || 0}</Text>
+          </View>
+
+          <View style={styles.gridItem}>
+            <View style={styles.itemHeader}>
+              <Activity color="#1DB954" size={18} />
+              <Text style={styles.itemTitle}>Status</Text>
+            </View>
+            <Text style={[styles.itemValue, { color: '#1DB954' }]}>Healthy</Text>
+          </View>
+        </View>
+
+        {/* Dynamic Phases List */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Current Phases</Text>
+          <TouchableOpacity onPress={() => router.push('/infogathering')}>
+            <Text style={styles.manageText}>Update</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Profile Summary Card */}
-        <View style={styles.summaryCard}>
-          <View style={styles.cardHeader}>
-            S<Text style={styles.cardTitle}>Garden Overview</Text>
-            <TouchableOpacity onPress={() => router.push('/infogathering')}>
-              <Text style={styles.editLink}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <MapPin color="#1DB954" size={20} />
-              <Text style={styles.statLabel}>{summary?.location || 'Global'}</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Sprout color="#1DB954" size={20} />
-              <Text style={styles.statLabel}>{summary?.special_plants?.length || 0} Crops</Text>
-            </View>
-          </View>
-
-          <View style={styles.chipContainer}>
-            {summary?.plant_phases?.map((phase, index) => (
-              <View key={index} style={styles.chip}>
-                <Text style={styles.chipText}>{phase}</Text>
+        <View style={styles.phaseContainer}>
+          {summary?.plant_phases?.length > 0 ? (
+            summary.plant_phases.map((phase, i) => (
+              <View key={i} style={styles.phaseCard}>
+                <Calendar color="#888" size={16} />
+                <Text style={styles.phaseText}>{phase}</Text>
               </View>
-            ))}
-          </View>
+            ))
+          ) : (
+            <TouchableOpacity
+              style={styles.emptyCard}
+              onPress={() => router.push('/infogathering')}
+            >
+              <AlertCircle color="#444" size={20} />
+              <Text style={styles.emptyText}>Add your current growth stages</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Action Buttons */}
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-
-        <TouchableOpacity style={styles.mainActionBtn} onPress={() => router.push('/Upload')}>
-          <View style={styles.actionIconWrapper}>
-            <Camera color="black" size={28} />
-          </View>
-          <View style={styles.actionTextWrapper}>
-            <Text style={styles.actionTitle}>Scan Plant</Text>
-            <Text style={styles.actionSubtitle}>Identify disease in seconds</Text>
-          </View>
-          <ChevronRight color="#555" size={20} />
+        {/* Primary Functional Actions */}
+        <TouchableOpacity style={styles.primaryScanBtn} onPress={() => router.push('/Upload')}>
+          <Camera color="black" size={24} />
+          <Text style={styles.primaryBtnText}>Start AI Diagnosis</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.secondaryActionBtn} onPress={() => router.push('/history')}>
-          <View style={[styles.actionIconWrapper, { backgroundColor: '#333' }]}>
-            <Leaf color="#1DB954" size={24} />
-          </View>
-          <View style={styles.actionTextWrapper}>
-            <Text style={styles.actionTitle}>Treatment History</Text>
-            <Text style={styles.actionSubtitle}>View past detections</Text>
-          </View>
-          <ChevronRight color="#555" size={20} />
-        </TouchableOpacity>
-
-        {/* Sign Out */}
-        <TouchableOpacity
-          onPress={() => signOut(() => router.replace('/(auth)/register'))}
-          style={styles.signOutBtn}
-        >
-          <LogOut color="#ff4d4f" size={20} />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+        <View style={styles.secondaryActions}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/history')}>
+            <Leaf color="#1DB954" size={22} />
+            <Text style={styles.actionCardText}>History</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionCard} onPress={() => signOut()}>
+            <LogOut color="#ff4d4f" size={22} />
+            <Text style={styles.actionCardText}>Log Out</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#0A0A0A' }, // Deeper black for utility feel
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#121212',
+    backgroundColor: '#0A0A0A',
   },
-  scrollContent: { padding: 24 },
-  header: {
+  topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 32,
+    paddingHorizontal: 24,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1A1A1A',
   },
-  greeting: { color: '#888', fontSize: 16, fontWeight: '500' },
-  username: { color: 'white', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
+  brandText: { color: 'white', fontSize: 20, fontWeight: '800' },
+  aiText: { color: '#1DB954' },
+  dateText: { color: '#555', fontSize: 12, marginTop: 2, fontWeight: '600' },
   profileCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#1e1e1e',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
   },
 
-  summaryCard: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 24,
-    padding: 20,
+  scrollContent: { padding: 24, paddingBottom: 40 },
+  welcomeSection: { marginBottom: 24 },
+  greetingText: { color: 'white', fontSize: 24, fontWeight: '700' },
+  subGreeting: { color: '#888', fontSize: 14, marginTop: 4 },
+
+  // Bento Grid
+  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
+  gridItem: {
+    backgroundColor: '#161616',
+    width: (width - 60) / 2,
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 32,
+    borderColor: '#222',
   },
-  cardHeader: {
+  itemHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  itemTitle: { color: '#888', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  itemValue: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+
+  // Sections
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    alignItems: 'flex-end',
+    marginBottom: 12,
   },
-  cardTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  editLink: { color: '#1DB954', fontWeight: 'bold' },
-  statsRow: { flexDirection: 'row', gap: 20, marginBottom: 20 },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statLabel: { color: '#ccc', fontSize: 14 },
-  chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { backgroundColor: '#333', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  chipText: { color: '#1DB954', fontSize: 12, fontWeight: 'bold' },
+  sectionTitle: { color: 'white', fontSize: 16, fontWeight: '700' },
+  manageText: { color: '#1DB954', fontSize: 14, fontWeight: '600' },
 
-  sectionTitle: { color: 'white', fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
-  mainActionBtn: {
-    backgroundColor: '#1DB954',
-    borderRadius: 20,
-    padding: 20,
+  phaseContainer: { marginBottom: 32 },
+  phaseCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    backgroundColor: '#161616',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 10,
   },
-  secondaryActionBtn: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
+  phaseText: { color: '#CCC', fontSize: 14, fontWeight: '500' },
+  emptyCard: {
+    borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: '#333',
-  },
-  actionIconWrapper: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    justifyContent: 'center',
+    padding: 20,
+    borderRadius: 12,
     alignItems: 'center',
-  },
-  actionTextWrapper: { flex: 1, marginLeft: 16 },
-  actionTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  actionSubtitle: { color: '#888', fontSize: 13 },
-
-  signOutBtn: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    marginTop: 40,
-    padding: 15,
   },
-  signOutText: { color: '#ff4d4f', fontSize: 16, fontWeight: '600' },
+  emptyText: { color: '#555', fontSize: 14 },
+
+  // Actions
+  primaryScanBtn: {
+    backgroundColor: '#1DB954',
+    flexDirection: 'row',
+    height: 60,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  primaryBtnText: { color: 'black', fontSize: 16, fontWeight: '800' },
+  secondaryActions: { flexDirection: 'row', gap: 12 },
+  actionCard: {
+    flex: 1,
+    backgroundColor: '#161616',
+    height: 60,
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#222',
+  },
+  actionCardText: { color: 'white', fontSize: 14, fontWeight: '600' },
 });
 
 export default Home;

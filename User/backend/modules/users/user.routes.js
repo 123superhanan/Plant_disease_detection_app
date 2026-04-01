@@ -97,31 +97,55 @@ router.get('/profile-summary', requireAuth, async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    console.log('🔄 Fetching profile summary for clerkId:', clerkId);
+
     const user = await getOrCreateUser(clerkId);
 
-    const result = await sql`
-SELECT 
-  u.id AS user_id,
-  u.clerk_id,
-  u.email,
-  up.location,
-  up.plant_phases,
-  up.special_plants,
-  up.updated_at
-FROM users u
-LEFT JOIN user_profiles up 
-ON u.id = up.user_id
-WHERE u.id = ${user.id}
-LIMIT 1
-`;
-    if (result.length === 0) {
+    if (!user || !user.id) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json(result[0]);
+    const result = await sql`
+      SELECT 
+        u.id AS user_id,
+        u.clerk_id,
+        u.email,
+        up.location,
+        up.plant_phases,
+        up.special_plants,
+        up.updated_at
+      FROM users u
+      LEFT JOIN user_profiles up 
+      ON u.id = up.user_id
+      WHERE u.id = ${user.id}
+      LIMIT 1
+    `;
+
+    // Handle Neon fullResults: true → result.rows
+    const rows = result?.rows ?? result ?? [];
+
+    if (rows.length === 0) {
+      console.log('No profile found for user:', user.id);
+      return res.json({
+        user_id: user.id,
+        clerk_id: user.clerk_id,
+        location: null,
+        plant_phases: [],
+        special_plants: [],
+      });
+    }
+
+    const data = rows[0];
+    console.log('✅ Profile summary returned:', data);
+
+    res.json(data);
   } catch (err) {
     console.error('❌ ERROR IN /api/users/profile-summary:', err.message);
-    res.status(500).json({ error: 'Failed to fetch profile summary' });
+    console.error('Stack:', err.stack);
+    res.status(500).json({
+      error: 'Failed to fetch profile summary',
+      message: err.message,
+    });
   }
 });
 
