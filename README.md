@@ -4,7 +4,7 @@
 **Team:** Abdul Hanan Abbasi (240560) | M Sameer Khalid (240556) | Muhammad Humza (243443)
 
 ![AgroVision Demo](https://via.placeholder.com/800x400?text=Add+Screenshots+Here)  
-*(Add 3-4 screenshots/GIFs here once you have them)*
+
 
 ## Overview
 AgroVision helps Pakistani farmers detect plant diseases early using mobile AI.  
