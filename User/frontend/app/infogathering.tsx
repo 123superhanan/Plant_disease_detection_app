@@ -46,7 +46,6 @@ export default function InfoGathering() {
       console.log('Sending payload:', payload);
 
       const res = await fetch('http://localhost:5001/api/users/profile', {
-        // ← Change localhost to your IP
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -21,7 +21,7 @@ router.get('/me', requireAuth, async (req, res) => {
     // Use the improved getOrCreateUser
     const user = await getOrCreateUser(clerkId);
 
-    console.log('✅ User returned successfully:', user);
+    console.log(' User returned successfully:', user);
 
     res.json({
       success: true,
@@ -34,7 +34,7 @@ router.get('/me', requireAuth, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('❌ ERROR IN /api/users/me:');
+    console.error('ERROR IN /api/users/me:');
     console.error('Message:', err.message);
     console.error('Stack:', err.stack);
 
@@ -80,7 +80,7 @@ router.post('/profile', requireAuth, async (req, res) => {
       profile,
     });
   } catch (err) {
-    console.error('❌ ERROR IN /api/users/profile:');
+    console.error(' ERROR IN /api/users/profile:');
     console.error('Message:', err.message);
     console.error('Stack:', err.stack);
     res.status(500).json({
@@ -136,11 +136,11 @@ router.get('/profile-summary', requireAuth, async (req, res) => {
     }
 
     const data = rows[0];
-    console.log('✅ Profile summary returned:', data);
+    console.log('Profile summary returned:', data);
 
     res.json(data);
   } catch (err) {
-    console.error('❌ ERROR IN /api/users/profile-summary:', err.message);
+    console.error(' ERROR IN /api/users/profile-summary:', err.message);
     console.error('Stack:', err.stack);
     res.status(500).json({
       error: 'Failed to fetch profile summary',
