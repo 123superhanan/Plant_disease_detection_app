@@ -53,7 +53,7 @@ else:
 
 IMG_SIZE = (128, 128)
 
-# Recommendations (same as before)
+# Recommendations 
 RECOMMENDATIONS = {
     "Healthy": {
         "disease_name": "Healthy Plant",
