@@ -192,7 +192,7 @@ function Home() {
         {/* ========== AI RECOMMENDATION SECTION ========== */}
         <View style={styles.recommendationSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🌱 AI Recommendation</Text>
+            <Text style={styles.sectionTitle}>Linear AI Recommendation</Text>
             <TouchableOpacity onPress={loadRecommendation}>
               <Text style={styles.refreshText}>Refresh</Text>
             </TouchableOpacity>

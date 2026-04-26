@@ -9,6 +9,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -23,6 +24,10 @@ export default function Upload() {
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [prediction, setPrediction] = useState<any>(null);
+  const [showDetails, setShowDetails] = useState(false);
+
+  // Get your actual local IP address (not localhost for physical device)
+  const API_URL = 'http://localhost:5001/api/detect';
 
   // Pick image from gallery
   const pickImage = async () => {
@@ -35,7 +40,8 @@ export default function Upload() {
 
     if (!result.canceled) {
       setImage(result.assets[0].uri);
-      setPrediction(null); // Reset prediction on new image
+      setPrediction(null);
+      setShowDetails(false);
     }
   };
 
@@ -56,6 +62,7 @@ export default function Upload() {
     if (!result.canceled) {
       setImage(result.assets[0].uri);
       setPrediction(null);
+      setShowDetails(false);
     }
   };
 
@@ -68,34 +75,56 @@ export default function Upload() {
       const token = await getToken();
       const formData = new FormData();
 
-      // Constructing file data
-      const uriParts = image.split('.');
-      const fileType = uriParts[uriParts.length - 1];
+      // Get file info
+      const uriParts = image.split('/');
+      const fileName = uriParts[uriParts.length - 1] || 'photo.jpg';
 
-      // @ts-ignore
-      formData.append('file', {
-        uri: image,
-        name: `photo.${fileType}`,
-        type: `image/${fileType}`,
-      });
+      // For React Native web, use blob
+      if (image.startsWith('blob:')) {
+        const blobResponse = await fetch(image);
+        const blob = await blobResponse.blob();
+        formData.append('file', blob, 'photo.jpg');
+      } else {
+        // @ts-ignore
+        formData.append('file', {
+          uri: image,
+          name: fileName,
+          type: 'image/jpeg',
+        });
+      }
 
-      const response = await fetch('http://your-ip-address:5001/api/detect', {
+      console.log('Sending request...');
+
+      const response = await fetch('http://localhost:5001/api/detect', {
         method: 'POST',
         body: formData,
         headers: {
-          'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${token}`,
         },
       });
 
-      const data = await response.json();
-      setPrediction(data);
+      console.log('Response status:', response.status);
 
-      // Option: Navigate to a detailed results page
-      // router.push({ pathname: '/results', params: data });
+      const text = await response.text();
+      console.log('Raw response:', text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('Failed to parse JSON:', text);
+        throw new Error('Invalid response from server');
+      }
+
+      if (response.ok) {
+        setPrediction(data);
+        Alert.alert('Success', `Detected: ${data.disease || data.disease_name}`);
+      } else {
+        Alert.alert('Error', data.error || 'Detection failed');
+      }
     } catch (error) {
-      console.error(error);
-      Alert.alert('Detection Failed', 'Make sure your backend is running.');
+      console.error('Error:', error);
+      Alert.alert('Error', 'Failed to connect to server');
     } finally {
       setUploading(false);
     }
@@ -111,68 +140,120 @@ export default function Upload() {
           <X color="white" size={28} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>AI SCANNER</Text>
-        <TouchableOpacity>
+        <TouchableOpacity
+          onPress={() =>
+            Alert.alert('About', 'Upload a clear photo of your plant leaf for AI disease detection')
+          }
+        >
           <Info color="#555" size={24} />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
-        {image ? (
-          <View style={styles.previewContainer}>
-            <Image source={{ uri: image }} style={styles.imagePreview} />
-            {prediction && (
-              <View style={styles.resultBadge}>
-                <Zap color="#1DB954" size={16} fill="#1DB954" />
-                <Text style={styles.resultText}>{prediction.disease_name || 'Healthy'}</Text>
-              </View>
-            )}
-          </View>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <View style={styles.scanBox}>
-              <Zap color="#1DB954" size={40} style={styles.zapIcon} />
-              <Text style={styles.emptyText}>Place your plant in the frame</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Action Controls */}
-        <View style={styles.controls}>
-          {!image ? (
-            <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.iconBtn} onPress={pickImage}>
-                <ImageIcon color="white" size={28} />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
-                <View style={styles.captureInner} />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.iconBtn}>
-                <ShieldCheck color="#555" size={28} />
-              </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {image ? (
+            <View style={styles.previewContainer}>
+              <Image source={{ uri: image }} style={styles.imagePreview} />
+              {prediction && !showDetails && (
+                <View style={styles.resultBadge}>
+                  <Zap color="#1DB954" size={16} fill="#1DB954" />
+                  <Text style={styles.resultText}>{prediction.disease || 'Analyzing...'}</Text>
+                </View>
+              )}
             </View>
           ) : (
-            <View style={styles.actionRow}>
-              <TouchableOpacity style={styles.retakeBtn} onPress={() => setImage(null)}>
-                <Text style={styles.retakeText}>RETAKE</Text>
-              </TouchableOpacity>
+            <View style={styles.emptyContainer}>
+              <View style={styles.scanBox}>
+                <Zap color="#1DB954" size={40} style={styles.zapIcon} />
+                <Text style={styles.emptyText}>Place your plant in the frame</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Prediction Details */}
+          {prediction && showDetails && (
+            <View style={styles.detailsContainer}>
+              <View style={styles.diseaseCard}>
+                <Text style={styles.diseaseTitle}>{prediction.disease}</Text>
+                <Text style={styles.confidenceText}>
+                  Confidence:{' '}
+                  {prediction.confidence_percentage ||
+                    `${(prediction.confidence * 100).toFixed(1)}%`}
+                </Text>
+
+                <View style={styles.divider} />
+
+                <Text style={styles.sectionTitle}>🌿 Treatment</Text>
+                <Text style={styles.sectionText}>
+                  {prediction.recommendations?.treatment ||
+                    'Apply appropriate fungicide. Remove infected leaves.'}
+                </Text>
+
+                <Text style={styles.sectionTitle}>🛡️ Prevention</Text>
+                <Text style={styles.sectionText}>
+                  {prediction.recommendations?.prevention ||
+                    'Improve air circulation. Water at base of plant.'}
+                </Text>
+
+                <Text style={styles.sectionTitle}>⚠️ Severity</Text>
+                <Text style={styles.sectionText}>
+                  {prediction.recommendations?.severity || 'Moderate'}
+                </Text>
+              </View>
 
               <TouchableOpacity
-                style={[styles.detectBtn, uploading && styles.disabled]}
-                onPress={handleDetect}
-                disabled={uploading}
+                style={styles.newScanBtn}
+                onPress={() => {
+                  setImage(null);
+                  setPrediction(null);
+                  setShowDetails(false);
+                }}
               >
-                {uploading ? (
-                  <ActivityIndicator color="black" />
-                ) : (
-                  <Text style={styles.detectBtnText}>ANALYZE PLANT</Text>
-                )}
+                <Text style={styles.newScanText}>SCAN ANOTHER PLANT</Text>
               </TouchableOpacity>
             </View>
           )}
+
+          {/* Action Controls */}
+          {!showDetails && (
+            <View style={styles.controls}>
+              {!image ? (
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity style={styles.iconBtn} onPress={pickImage}>
+                    <ImageIcon color="white" size={28} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
+                    <View style={styles.captureInner} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.iconBtn}>
+                    <ShieldCheck color="#555" size={28} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.actionRow}>
+                  <TouchableOpacity style={styles.retakeBtn} onPress={() => setImage(null)}>
+                    <Text style={styles.retakeText}>RETAKE</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.detectBtn, uploading && styles.disabled]}
+                    onPress={handleDetect}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <ActivityIndicator color="black" />
+                    ) : (
+                      <Text style={styles.detectBtnText}>ANALYZE PLANT</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
         </View>
-      </View>
+      </ScrollView>
 
       <Text style={styles.footerHint}>AI results can vary. Verify with an expert.</Text>
     </View>
@@ -191,9 +272,15 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   headerTitle: { color: 'white', fontSize: 14, fontWeight: '900', letterSpacing: 2 },
-  content: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
+  scrollContent: { flexGrow: 1 },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
 
-  // Empty State
   emptyContainer: { width: '100%', alignItems: 'center' },
   scanBox: {
     width: width * 0.8,
@@ -208,7 +295,6 @@ const styles = StyleSheet.create({
   zapIcon: { marginBottom: 20, opacity: 0.5 },
   emptyText: { color: '#555', fontSize: 16, textAlign: 'center' },
 
-  // Preview State
   previewContainer: {
     width: width * 0.85,
     height: width * 1.1,
@@ -216,6 +302,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#111',
     elevation: 10,
+    marginBottom: 20,
   },
   imagePreview: { width: '100%', height: '100%', resizeMode: 'cover' },
   resultBadge: {
@@ -234,8 +321,61 @@ const styles = StyleSheet.create({
   },
   resultText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 
-  // Controls
-  controls: { width: '100%', paddingVertical: 40 },
+  detailsContainer: {
+    width: '100%',
+    marginTop: 20,
+  },
+  diseaseCard: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  diseaseTitle: {
+    color: '#1DB954',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  confidenceText: {
+    color: '#AAA',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#2A2A2A',
+    marginVertical: 16,
+  },
+  sectionTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  sectionText: {
+    color: '#CCC',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  newScanBtn: {
+    backgroundColor: '#1DB954',
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  newScanText: {
+    color: 'black',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+
+  controls: { width: '100%', paddingVertical: 20 },
   buttonRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
   iconBtn: {
     width: 60,
@@ -280,7 +420,7 @@ const styles = StyleSheet.create({
     color: '#444',
     fontSize: 11,
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
     paddingHorizontal: 40,
   },
 });
