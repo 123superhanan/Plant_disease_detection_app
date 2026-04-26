@@ -1,27 +1,30 @@
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import {
+  Activity,
+  AlertCircle,
+  Calendar,
   Camera,
   ChevronRight,
+  Droplet,
   Leaf,
   LogOut,
   MapPin,
   Sprout,
+  Sun,
+  TrendingUp,
   User,
-  Activity,
-  Calendar,
-  AlertCircle,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -34,12 +37,26 @@ function Home() {
 
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [recommendation, setRecommendation] = useState(null);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       loadSummary();
     }
   }, [isLoaded, isSignedIn]);
+
+  useEffect(() => {
+    // Get recommendation when summary is loaded
+    if (
+      summary &&
+      summary.location &&
+      summary.special_plants?.length > 0 &&
+      summary.plant_phases?.length > 0
+    ) {
+      loadRecommendation();
+    }
+  }, [summary]);
 
   const loadSummary = async () => {
     setLoading(true);
@@ -57,6 +74,51 @@ function Home() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRecommendation = async () => {
+    setRecommendationLoading(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      // Get the first crop and first growth phase from user profile
+      const primaryCrop = summary.special_plants?.[0] || 'Tomato';
+      const growthStage = summary.plant_phases?.[0] || 'Flowering';
+      const location = summary.location || 'Faisalabad';
+
+      // Get current season based on month
+      const month = new Date().getMonth();
+      let season = 'Spring';
+      if (month >= 2 && month <= 4) season = 'Spring';
+      else if (month >= 5 && month <= 7) season = 'Summer';
+      else if (month >= 8 && month <= 10) season = 'Autumn';
+      else season = 'Winter';
+
+      // Call your recommendation API
+      const response = await fetch('http://localhost:5001/api/recommendation/predict', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          location: location,
+          crop: primaryCrop,
+          growth_stage: growthStage,
+          season: season,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setRecommendation(data);
+      }
+    } catch (err) {
+      console.error('Recommendation error:', err);
+    } finally {
+      setRecommendationLoading(false);
     }
   };
 
@@ -127,6 +189,66 @@ function Home() {
           </View>
         </View>
 
+        {/* ========== AI RECOMMENDATION SECTION ========== */}
+        <View style={styles.recommendationSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>🌱 AI Recommendation</Text>
+            <TouchableOpacity onPress={loadRecommendation}>
+              <Text style={styles.refreshText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+
+          {recommendationLoading ? (
+            <View style={styles.recommendationCard}>
+              <ActivityIndicator color="#1DB954" size="small" />
+              <Text style={styles.recommendationLoadingText}>Analyzing your farm data...</Text>
+            </View>
+          ) : recommendation ? (
+            <View style={styles.recommendationCard}>
+              <View style={styles.recommendationHeader}>
+                <TrendingUp color="#1DB954" size={20} />
+                <Text style={styles.recommendationTitle}>Suggested Action</Text>
+              </View>
+
+              <Text style={styles.recommendationText}>{recommendation.recommendation}</Text>
+
+              <View style={styles.recommendationDetails}>
+                <View style={styles.detailRow}>
+                  <Droplet color="#888" size={14} />
+                  <Text style={styles.detailText}>
+                    Based on: {summary?.location} • {summary?.special_plants?.[0]} •{' '}
+                    {summary?.plant_phases?.[0]}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Sun color="#888" size={14} />
+                  <Text style={styles.detailText}>
+                    Season: {recommendation.season || 'Current'}
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.detailsBtn}
+                onPress={() => router.push('/recommendations')}
+              >
+                <Text style={styles.detailsBtnText}>View Full Details</Text>
+                <ChevronRight color="#1DB954" size={16} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.emptyRecommendationCard}
+              onPress={() => router.push('/infogathering')}
+            >
+              <AlertCircle color="#444" size={20} />
+              <Text style={styles.emptyRecommendationText}>
+                Complete your profile to get AI recommendations
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Dynamic Phases List */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Current Phases</Text>
@@ -176,7 +298,7 @@ function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' }, // Deeper black for utility feel
+  container: { flex: 1, backgroundColor: '#0A0A0A' },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -209,7 +331,6 @@ const styles = StyleSheet.create({
   greetingText: { color: 'white', fontSize: 24, fontWeight: '700' },
   subGreeting: { color: '#888', fontSize: 14, marginTop: 4 },
 
-  // Bento Grid
   gridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
   gridItem: {
     backgroundColor: '#161616',
@@ -223,7 +344,8 @@ const styles = StyleSheet.create({
   itemTitle: { color: '#888', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   itemValue: { color: 'white', fontSize: 18, fontWeight: 'bold' },
 
-  // Sections
+  // Recommendation Section (NEW)
+  recommendationSection: { marginBottom: 32 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -231,7 +353,84 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: { color: 'white', fontSize: 16, fontWeight: '700' },
-  manageText: { color: '#1DB954', fontSize: 14, fontWeight: '600' },
+  refreshText: { color: '#1DB954', fontSize: 12, fontWeight: '600' },
+
+  recommendationCard: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  recommendationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  recommendationTitle: {
+    color: '#1DB954',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  recommendationText: {
+    color: 'white',
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  recommendationDetails: {
+    backgroundColor: '#0F0F0F',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  detailText: {
+    color: '#AAA',
+    fontSize: 12,
+  },
+  detailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#2A2A2A',
+  },
+  detailsBtnText: {
+    color: '#1DB954',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  recommendationLoadingText: {
+    color: '#AAA',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  emptyRecommendationCard: {
+    backgroundColor: '#161616',
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  emptyRecommendationText: {
+    color: '#555',
+    fontSize: 14,
+    textAlign: 'center',
+  },
 
   phaseContainer: { marginBottom: 32 },
   phaseCard: {
@@ -257,7 +456,6 @@ const styles = StyleSheet.create({
   },
   emptyText: { color: '#555', fontSize: 14 },
 
-  // Actions
   primaryScanBtn: {
     backgroundColor: '#1DB954',
     flexDirection: 'row',

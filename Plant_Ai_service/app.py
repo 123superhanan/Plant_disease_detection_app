@@ -112,9 +112,55 @@ async def predict(file: UploadFile = File(...)):
             "confidence_percentage": f"{confidence:.1%}",
             "recommendations": recommendation
         }
+    except Exception as e:
+        print(f"Prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/recommend")
+async def get_recommendation(data: dict):
+    """
+    Get farming recommendations based on location, crop, growth stage, and season
+    """
+    try:
+        location = data.get('location')
+        crop = data.get('crop')
+        growth_stage = data.get('growth_stage')
+        season = data.get('season')
+        
+        # Your recommendation logic here
+        recommendations = {
+            "Pepper": {
+                "Flowering": "Apply potassium-rich fertilizer. Maintain consistent watering.",
+                "Vegetative": "Nitrogen-heavy fertilizer. Prune lower leaves.",
+                "Fruiting": "Increase potassium. Support heavy branches."
+            },
+            "Tomato": {
+                "Flowering": "Calcium supplement to prevent blossom end rot.",
+                "Vegetative": "Stake plants. Apply balanced fertilizer.",
+                "Fruiting": "Reduce nitrogen. Increase phosphorus and potassium."
+            },
+            "Corn": {
+                "Vegetative": "Side-dress with nitrogen. Ensure adequate water.",
+                "Flowering": "Maintain soil moisture. Watch for pests.",
+                "Fruiting": "Continue watering. Harvest when kernels are plump."
+            }
+        }
+        
+        crop_rec = recommendations.get(crop, {}).get(growth_stage, 
+            f"For {crop} in {growth_stage} stage during {season}, maintain regular watering and monitor for common pests."
+        )
+        
+        return {
+            "recommendation": crop_rec,
+            "location": location,
+            "crop": crop,
+            "growth_stage": growth_stage,
+            "season": season
+        }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Recommendation error: {str(e)}")
+        return {"recommendation": "Regular monitoring recommended. Consult local agricultural expert for specific advice."}
 
 if __name__ == "__main__":
     import uvicorn
