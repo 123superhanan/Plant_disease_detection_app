@@ -161,6 +161,58 @@ async def get_recommendation(data: dict):
     except Exception as e:
         print(f"Recommendation error: {str(e)}")
         return {"recommendation": "Regular monitoring recommended. Consult local agricultural expert for specific advice."}
+# Severity prediction based on disease + confidence + leaf coverage estimation
+def predict_severity(disease, confidence, leaf_coverage_percentage=30):
+    """
+    Simple rule-based severity model
+    """
+    severity_rules = {
+        "Healthy": {
+            "level": "None",
+            "score": 0,
+            "color": "#4CAF50",
+            "action": "No action needed"
+        },
+        "Powdery": {
+            "Mild": {"coverage": [0, 30], "score": 1, "color": "#FFC107", "action": "Monitor weekly"},
+            "Moderate": {"coverage": [31, 60], "score": 2, "color": "#FF9800", "action": "Apply neem oil"},
+            "Severe": {"coverage": [61, 100], "score": 3, "color": "#F44336", "action": "Immediate fungicide"}
+        },
+        "Rust": {
+            "Mild": {"coverage": [0, 20], "score": 1, "color": "#FFC107", "action": "Remove infected leaves"},
+            "Moderate": {"coverage": [21, 50], "score": 2, "color": "#FF9800", "action": "Apply copper fungicide"},
+            "Severe": {"coverage": [51, 100], "score": 3, "color": "#F44336", "action": "Isolate and treat urgently"}
+        }
+    }
+    
+    if disease == "Healthy":
+        return severity_rules["Healthy"]
+    
+    # Determine severity based on coverage (you can extract from image)
+    if leaf_coverage_percentage <= 30:
+        severity = "Mild"
+    elif leaf_coverage_percentage <= 60:
+        severity = "Moderate"
+    else:
+        severity = "Severe"
+    
+    result = severity_rules[disease].get(severity, severity_rules[disease]["Mild"])
+    result["severity"] = severity
+    result["coverage_percentage"] = leaf_coverage_percentage
+    result["confidence"] = confidence
+    
+    return result
+
+# Add severity endpoint
+@app.post("/severity")
+async def get_severity(data: dict):
+    disease = data.get('disease')
+    confidence = data.get('confidence', 0.9)
+    coverage = data.get('coverage_percentage', 30)  # Default 30%
+    
+    severity = predict_severity(disease, confidence, coverage)
+    return severity
+
 
 if __name__ == "__main__":
     import uvicorn

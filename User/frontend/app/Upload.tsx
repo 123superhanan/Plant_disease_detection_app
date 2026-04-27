@@ -117,7 +117,14 @@ export default function Upload() {
       }
 
       if (response.ok) {
-        setPrediction(data);
+        router.push({
+          pathname: '/results',
+          params: {
+            prediction: JSON.stringify(data), // Pass as string
+            imageUri: image,
+          },
+        });
+
         Alert.alert('Success', `Detected: ${data.disease || data.disease_name}`);
       } else {
         Alert.alert('Error', data.error || 'Detection failed');
