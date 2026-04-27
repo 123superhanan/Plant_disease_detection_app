@@ -137,23 +137,23 @@ export default function Results() {
 
         {/* Recommendations Card */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>💊 Treatment Plan</Text>
+          <Text style={styles.cardTitle}>Treatment Plan</Text>
           <Text style={styles.cardText}>{prediction.recommendations?.treatment}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>🛡️ Prevention Tips</Text>
+          <Text style={styles.cardTitle}> Prevention Tips</Text>
           <Text style={styles.cardText}>{prediction.recommendations?.prevention}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>⚠️ Severity Level</Text>
+          <Text style={styles.cardTitle}> Severity Level</Text>
           <Text style={styles.cardText}>{prediction.recommendations?.severity}</Text>
         </View>
 
         {/* Health Score Card */}
         <View style={[styles.scoreCard, { borderColor: getSeverityColor() }]}>
-          <Text style={styles.scoreTitle}>🌱 Plant Health Score</Text>
+          <Text style={styles.scoreTitle}> Plant Health Score</Text>
           <Text style={[styles.scoreValue, { color: getSeverityColor() }]}>
             {getHealthScore()}/100
           </Text>
@@ -187,8 +187,7 @@ export default function Results() {
 
         {/* Disclaimer */}
         <Text style={styles.disclaimer}>
-          🤖 AI diagnosis is for guidance only. Consult an agricultural expert for critical
-          decisions.
+          AI diagnosis is for guidance only. Consult an agricultural expert for critical decisions.
         </Text>
       </ScrollView>
     </View>

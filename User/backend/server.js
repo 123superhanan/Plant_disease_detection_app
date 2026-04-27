@@ -4,8 +4,11 @@ import express from 'express';
 import { initDB } from './config/db.js';
 //import rateLimiter from './middleware/rateLimiter.js';
 import inferenceRoutes from './modules/inference/inference.routes.js';
-import recommendationRoutes from './modules/recommendation/recommendation.routes.js'; // ADD THIS
+import recommendationRoutes from './modules/recommendation/recommendation.routes.js';
 import userRouter from './modules/users/user.routes.js';
+// Add these imports
+import adminRoutes from './modules/inference/admin.routes.js';
+import historyRoutes from './modules/inference/history.routes.js';
 
 dotenv.config();
 
@@ -30,7 +33,9 @@ app.use(express.json());
 
 app.use('/api/users', userRouter);
 app.use('/api', inferenceRoutes);
-app.use('/api/recommendation', recommendationRoutes); // ADD THIS LINE
+app.use('/api/recommendation', recommendationRoutes);
+app.use('/api', historyRoutes); // For user history
+app.use('/api', adminRoutes); // For admin dashboard
 
 // Health check route - no await needed here
 // app.get('/health', async (req, res) => {
