@@ -6,6 +6,9 @@ import { getOrCreateUser, upsertUserProfile } from './user.service.js';
 const router = Router();
 
 router.get('/me', requireAuth, async (req, res) => {
+  console.log('ROUTE HIT');
+  console.log('AUTH HEADER:', req.headers.authorization);
+  console.log('REQ.AUTH:', req.auth);
   try {
     console.log('=== /api/users/me route called ===');
     console.log('req.auth:', JSON.stringify(req.auth, null, 2));
@@ -17,7 +20,7 @@ router.get('/me', requireAuth, async (req, res) => {
     }
 
     console.log('clerkId extracted:', clerkId);
-
+    console.log('Auth header:', req.headers.authorization);
     // Use the improved getOrCreateUser
     const user = await getOrCreateUser(clerkId);
 

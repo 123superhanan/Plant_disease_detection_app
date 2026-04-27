@@ -69,31 +69,28 @@ export default function Upload() {
   // Upload and Detect
   const handleDetect = async () => {
     if (!image) return;
+
     setUploading(true);
 
     try {
       const token = await getToken();
+
       const formData = new FormData();
 
-      // Get file info
       const uriParts = image.split('/');
       const fileName = uriParts[uriParts.length - 1] || 'photo.jpg';
 
-      // For React Native web, use blob
       if (image.startsWith('blob:')) {
         const blobResponse = await fetch(image);
         const blob = await blobResponse.blob();
         formData.append('file', blob, 'photo.jpg');
       } else {
-        // @ts-ignore
         formData.append('file', {
           uri: image,
           name: fileName,
           type: 'image/jpeg',
-        });
+        } as any);
       }
-
-      console.log('Sending request...');
 
       const response = await fetch('http://localhost:5001/api/detect', {
         method: 'POST',
@@ -103,40 +100,36 @@ export default function Upload() {
         },
       });
 
-      console.log('Response status:', response.status);
-
       const text = await response.text();
-      console.log('Raw response:', text);
 
       let data;
       try {
         data = JSON.parse(text);
       } catch (e) {
-        console.error('Failed to parse JSON:', text);
         throw new Error('Invalid response from server');
       }
 
-      if (response.ok) {
-        router.push({
-          pathname: '/results',
-          params: {
-            prediction: JSON.stringify(data), // Pass as string
-            imageUri: image,
-          },
-        });
-
-        Alert.alert('Success', `Detected: ${data.disease || data.disease_name}`);
-      } else {
+      if (!response.ok) {
         Alert.alert('Error', data.error || 'Detection failed');
+        return;
       }
+
+      router.push({
+        pathname: '/results',
+        params: {
+          prediction: JSON.stringify(data),
+          imageUri: image,
+        },
+      });
+
+      Alert.alert('Success', `Detected: ${data.disease || data.disease_name}`);
     } catch (error) {
-      console.error('Error:', error);
+      console.error(error);
       Alert.alert('Error', 'Failed to connect to server');
     } finally {
       setUploading(false);
     }
   };
-
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#1DB95420', 'transparent']} style={styles.backgroundGlow} />

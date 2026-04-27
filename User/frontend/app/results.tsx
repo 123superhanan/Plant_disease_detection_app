@@ -1,10 +1,10 @@
+import { useAuth } from '@clerk/clerk-expo/dist/hooks/useAuth';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle,
-  Download,
   Droplet,
   Share2,
   Shield,
@@ -23,6 +23,7 @@ import {
 export default function Results() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { getToken } = useAuth();
   const prediction = JSON.parse(params.prediction as string);
   const imageUri = params.imageUri as string;
 
@@ -88,11 +89,37 @@ export default function Results() {
     }
   };
 
-  const saveToHistory = async () => {
-    // This will be handled by your backend automatically
-    // The backend already saves to detection_history
-    Alert.alert('Saved', 'Diagnosis saved to your history');
-  };
+  // const saveToHistory = async () => {
+  //   try {
+  //     const token = await getToken();
+
+  //     // The backend already saves during detection, but if you want to manually save:
+  //     const response = await fetch('http://localhost:5001/api/history/save', {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         Authorization: `Bearer ${token}`,
+  //       },
+  //       body: JSON.stringify({
+  //         image_url: imageUri,
+  //         disease_detected: prediction.disease,
+  //         confidence: prediction.confidence,
+  //         prediction: prediction,
+  //         health_score: getHealthScore(),
+  //         severity_level: prediction.recommendations?.severity || 'Unknown',
+  //       }),
+  //     });
+
+  //     if (response.ok) {
+  //       Alert.alert('✅ Saved', 'Diagnosis saved to your history');
+  //     } else {
+  //       Alert.alert('⚠️ Error', 'Failed to save to history');
+  //     }
+  //   } catch (error) {
+  //     console.error('Save error:', error);
+  //     Alert.alert('Error', 'Could not save to history');
+  //   }
+  // };
 
   return (
     <View style={styles.container}>
@@ -179,10 +206,10 @@ export default function Results() {
             <Text style={styles.shareBtnText}>Share Report</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.saveBtn} onPress={saveToHistory}>
+          {/* <TouchableOpacity style={styles.saveBtn} onPress={saveToHistory}>
             <Download color="black" size={20} />
             <Text style={styles.saveBtnText}>Save</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* Disclaimer */}

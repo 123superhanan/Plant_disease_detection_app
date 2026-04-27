@@ -144,7 +144,16 @@ const Register = () => {
       setLoading(false);
     }
   };
+  const testAuth = async () => {
+    const token = await getToken();
+    console.log('Token:', token);
 
+    const response = await fetch('http://localhost:5001/api/debug/auth', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json();
+    console.log('Auth debug:', data);
+  };
   // The rest of your return JSX stays exactly the same
   return (
     <SafeAreaView style={styles.container}>

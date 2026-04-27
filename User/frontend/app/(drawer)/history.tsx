@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 
 export default function History() {
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
   const router = useRouter();
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
@@ -35,27 +35,32 @@ export default function History() {
   const loadHistory = async () => {
     try {
       const token = await getToken();
+      console.log('Token received in History:', !!token); // Debug log
+
+      if (!token) {
+        console.log('No token available');
+        return;
+      }
 
       const response = await fetch('http://localhost:5001/api/history', {
         headers: {
           Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
 
-      const data = await response.json();
+      console.log('Response status:', response.status);
 
       if (response.ok) {
+        const data = await response.json();
+        console.log('History data:', data);
         setHistory(data.history || []);
         setStats(data.stats);
       } else {
-        console.error('Error loading history:', data.error);
+        console.log('Failed to load history:', response.status);
       }
     } catch (error) {
-      console.error('Network error:', error);
-      Alert.alert('Error', 'Failed to load history');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      console.error('Load history error:', error);
     }
   };
 
@@ -71,14 +76,20 @@ export default function History() {
             const token = await getToken();
             const response = await fetch(`http://localhost:5001/api/history/${id}`, {
               method: 'DELETE',
-              headers: { Authorization: `Bearer ${token}` },
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
             });
 
             if (response.ok) {
               loadHistory(); // Refresh the list
               Alert.alert('Success', 'Detection deleted');
+            } else {
+              Alert.alert('Error', 'Failed to delete');
             }
           } catch (error) {
+            console.error('Delete error:', error);
             Alert.alert('Error', 'Failed to delete');
           }
         },
@@ -113,7 +124,7 @@ Powered by AgriVision AI 🌱
   useFocusEffect(
     useCallback(() => {
       loadHistory();
-    }, [])
+    }, [isSignedIn])
   );
 
   const onRefresh = () => {
@@ -313,7 +324,6 @@ const styles = StyleSheet.create({
   headerTitle: { color: 'white', fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
   scrollContent: { paddingBottom: 40 },
 
-  // Stats
   statsContainer: { flexDirection: 'row', gap: 12, marginHorizontal: 20, marginBottom: 24 },
   statCard: {
     flex: 1,
@@ -327,7 +337,6 @@ const styles = StyleSheet.create({
   statValue: { color: 'white', fontSize: 24, fontWeight: 'bold', marginTop: 8 },
   statLabel: { color: '#888', fontSize: 12, marginTop: 4 },
 
-  // Empty State
   emptyContainer: { alignItems: 'center', paddingTop: 100 },
   emptyEmoji: { fontSize: 64, marginBottom: 16 },
   emptyTitle: { color: 'white', fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
@@ -340,7 +349,6 @@ const styles = StyleSheet.create({
   },
   scanBtnText: { color: 'black', fontWeight: 'bold', fontSize: 16 },
 
-  // History Cards
   historyCard: {
     backgroundColor: '#161616',
     marginHorizontal: 20,
@@ -366,7 +374,6 @@ const styles = StyleSheet.create({
   dateText: { color: '#666', fontSize: 11 },
   cardRight: { justifyContent: 'center' },
 
-  // Action Buttons
   actionButtons: {
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -389,7 +396,6 @@ const styles = StyleSheet.create({
   deleteBtn: { backgroundColor: '#2A1A1A' },
   deleteBtnText: { color: '#F44336' },
 
-  // Download Button
   downloadBtn: {
     backgroundColor: '#1DB954',
     marginHorizontal: 20,
