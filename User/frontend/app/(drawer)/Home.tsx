@@ -1,22 +1,7 @@
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import {
-  Activity,
-  AlertCircle,
-  Calendar,
-  Camera,
-  ChevronRight,
-  Droplet,
-  Leaf,
-  LogOut,
-  MapPin,
-  Sprout,
-  Sun,
-  TrendingUp,
-  User,
-} from 'lucide-react-native';
-import { useCallback, useState, useEffect } from 'react';
+import { Camera, Droplet, History, LayoutGrid, MapPin, Sprout, User } from 'lucide-react-native';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -26,128 +11,24 @@ import {
   Text,
   TouchableOpacity,
   View,
-  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-// 🚀 Cached data - loads instantly from memory
-let cachedSummary = null;
-let cachedRecommendation = null;
-let lastFetchTime = 0;
-const CACHE_DURATION = 30000; // 30 seconds
-
 function Home() {
-  const { isLoaded, isSignedIn, signOut, getToken } = useAuth();
+  const { isLoaded, signOut, getToken } = useAuth();
   const { user } = useUser();
   const router = useRouter();
 
-  // 🚀 State with initial cached values
-  const [summary, setSummary] = useState(cachedSummary);
-  const [recommendation, setRecommendation] = useState(cachedRecommendation);
-  const [loading, setLoading] = useState(!cachedSummary);
-  const [refreshing, setRefreshing] = useState(false);
+  // Simplified state for the demo
+  const [loading, setLoading] = useState(false);
+  const [summary] = useState({ location: 'Faisalabad', cropCount: 3 });
 
-  // 🚀 Load data ONCE when screen focuses
-  useFocusEffect(
-    useCallback(() => {
-      const loadData = async () => {
-        // Use cache if fresh
-        const now = Date.now();
-        if (cachedSummary && now - lastFetchTime < CACHE_DURATION) {
-          setSummary(cachedSummary);
-          setRecommendation(cachedRecommendation);
-          setLoading(false);
-          return;
-        }
-
-        setLoading(true);
-        try {
-          const token = await getToken();
-          if (!token) {
-            setLoading(false);
-            return;
-          }
-
-          // 🚀 PARALLEL fetch - MUCH faster
-          const [summaryRes, recommendationRes] = await Promise.allSettled([
-            fetch('http://localhost:5001/api/users/profile-summary', {
-              headers: { Authorization: `Bearer ${token}` },
-            }).then(r => (r.ok ? r.json() : null)),
-            fetchRecommendation(token),
-          ]);
-
-          if (summaryRes.status === 'fulfilled' && summaryRes.value) {
-            cachedSummary = summaryRes.value;
-            setSummary(summaryRes.value);
-          }
-
-          if (recommendationRes.status === 'fulfilled' && recommendationRes.value) {
-            cachedRecommendation = recommendationRes.value;
-            setRecommendation(recommendationRes.value);
-          }
-
-          lastFetchTime = Date.now();
-        } catch (err) {
-          console.error('Load error:', err);
-        } finally {
-          setLoading(false);
-          setRefreshing(false);
-        }
-      };
-
-      loadData();
-    }, [isSignedIn])
-  );
-
-  const fetchRecommendation = async token => {
-    try {
-      const primaryCrop = cachedSummary?.special_plants?.[0] || 'Tomato';
-      const growthStage = cachedSummary?.plant_phases?.[0] || 'Flowering';
-      const location = cachedSummary?.location || 'Faisalabad';
-
-      const month = new Date().getMonth();
-      let season = 'Spring';
-      if (month >= 2 && month <= 4) season = 'Spring';
-      else if (month >= 5 && month <= 7) season = 'Summer';
-      else if (month >= 8 && month <= 10) season = 'Autumn';
-      else season = 'Winter';
-
-      // ⏱️ 3 second timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-      const response = await fetch('http://localhost:5001/api/recommendation/predict', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ location, crop: primaryCrop, growth_stage: growthStage, season }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      if (response.ok) return await response.json();
-    } catch (err) {
-      // Silent fail
-    }
-    return null;
-  };
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    cachedSummary = null;
-    lastFetchTime = 0;
-    // Trigger reload via useFocusEffect
-  };
-
-  // 🚀 Show UI IMMEDIATELY (even while loading)
   if (!isLoaded) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1DB954" />
+        <ActivityIndicator size="large" color="#00FF66" />
       </View>
     );
   }
@@ -156,151 +37,81 @@ function Home() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header - Always shows instantly */}
-      <View style={styles.topBar}>
-        <View>
-          <Text style={styles.brandText}>
-            AgriVision <Text style={styles.aiText}>AI</Text>
-          </Text>
-          <Text style={styles.dateText}>
-            {new Date().toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-          </Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* 1. TOP BAR: Clean & Focused */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Salaam, {user?.firstName || 'Gardener'}</Text>
+            <View style={styles.locationBadge}>
+              <MapPin size={12} color="#888" />
+              <Text style={styles.locationText}>{summary.location}</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.profileBtn}
+            onPress={() => router.push('/(drawer)/profile')}
+          >
+            <User color="white" size={20} />
+          </TouchableOpacity>
         </View>
+
+        {/* 2. MAIN STATUS CARD: High Visual Impact */}
+        <View style={styles.statusCard}>
+          <View style={styles.statusInfo}>
+            <Text style={styles.statusLabel}>Garden Status / حال</Text>
+            <Text style={styles.statusValue}>SABZ (Healthy)</Text>
+          </View>
+          <View style={styles.statusCircle}>
+            <Sprout color="#00FF66" size={32} />
+          </View>
+        </View>
+
+        {/* 3. PRIMARY ACTION: The "Everything" Button */}
         <TouchableOpacity
-          style={styles.profileCircle}
-          onPress={() => router.push('/(drawer)/profile')}
+          style={styles.scanButton}
+          onPress={() => router.push('/Upload')}
+          activeOpacity={0.8}
         >
-          <User color="#1DB954" size={20} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1DB954" />
-        }
-      >
-        {/* Welcome - Always visible */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.greetingText}>Hello, {user?.firstName || 'Gardener'} 👋</Text>
-          <Text style={styles.subGreeting}>Your garden is active today.</Text>
-        </View>
-
-        {/* Stats Grid - Shows cached or placeholder */}
-        <View style={styles.gridContainer}>
-          <View style={[styles.gridItem, { width: '100%' }]}>
-            <View style={styles.itemHeader}>
-              <MapPin color="#1DB954" size={18} />
-              <Text style={styles.itemTitle}>Location</Text>
-            </View>
-            <Text style={styles.itemValue}>
-              {loading ? 'Loading...' : summary?.location || 'Set Location'}
-            </Text>
+          <View style={styles.scanIconCircle}>
+            <Camera color="black" size={30} />
           </View>
-
-          <View style={styles.gridItem}>
-            <View style={styles.itemHeader}>
-              <Sprout color="#1DB954" size={18} />
-              <Text style={styles.itemTitle}>Crops</Text>
-            </View>
-            <Text style={styles.itemValue}>
-              {loading ? '...' : summary?.special_plants?.length || 0}
-            </Text>
+          <View>
+            <Text style={styles.scanTitle}>Check Plant Disease</Text>
+            <Text style={styles.scanSub}>بیماری چیک کریں</Text>
           </View>
-
-          <View style={styles.gridItem}>
-            <View style={styles.itemHeader}>
-              <Activity color="#1DB954" size={18} />
-              <Text style={styles.itemTitle}>Status</Text>
-            </View>
-            <Text style={[styles.itemValue, { color: '#1DB954' }]}>Healthy</Text>
-          </View>
-        </View>
-
-        {/* AI Recommendation - Shows cached or loading */}
-        <View style={styles.recommendationSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🌱 AI Recommendation</Text>
-          </View>
-
-          {recommendation ? (
-            <View style={styles.recommendationCard}>
-              <View style={styles.recommendationHeader}>
-                <TrendingUp color="#1DB954" size={20} />
-                <Text style={styles.recommendationTitle}>Suggested Action</Text>
-              </View>
-              <Text style={styles.recommendationText}>{recommendation.recommendation}</Text>
-              <View style={styles.recommendationDetails}>
-                <View style={styles.detailRow}>
-                  <Droplet color="#888" size={14} />
-                  <Text style={styles.detailText}>
-                    Based on: {summary?.location || 'Faisalabad'} •{' '}
-                    {summary?.special_plants?.[0] || 'Tomato'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.emptyRecommendationCard}
-              onPress={() => router.push('/infogathering')}
-            >
-              <AlertCircle color="#444" size={20} />
-              <Text style={styles.emptyRecommendationText}>
-                {loading
-                  ? 'Loading recommendation...'
-                  : 'Complete your profile to get AI recommendations'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Current Phases */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Current Phases</Text>
-          <TouchableOpacity onPress={() => router.push('/infogathering')}>
-            <Text style={styles.manageText}>Update</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.phaseContainer}>
-          {summary?.plant_phases?.length > 0 ? (
-            summary.plant_phases.map((phase, i) => (
-              <View key={i} style={styles.phaseCard}>
-                <Calendar color="#888" size={16} />
-                <Text style={styles.phaseText}>{phase}</Text>
-              </View>
-            ))
-          ) : (
-            <TouchableOpacity
-              style={styles.emptyCard}
-              onPress={() => router.push('/infogathering')}
-            >
-              <AlertCircle color="#444" size={20} />
-              <Text style={styles.emptyText}>Add your current growth stages</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Actions */}
-        <TouchableOpacity style={styles.primaryScanBtn} onPress={() => router.push('/Upload')}>
-          <Camera color="black" size={24} />
-          <Text style={styles.primaryBtnText}>Start AI Diagnosis</Text>
         </TouchableOpacity>
 
-        <View style={styles.secondaryActions}>
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/history')}>
-            <Leaf color="#1DB954" size={22} />
-            <Text style={styles.actionCardText}>History</Text>
+        {/* 4. QUICK STATS: Simplified Visuals */}
+        <View style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <LayoutGrid color="#00FF66" size={24} />
+            <Text style={styles.statNum}>{summary.cropCount}</Text>
+            <Text style={styles.statLabel}>Crops</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Droplet color="#3498db" size={24} />
+            <Text style={styles.statNum}>Today</Text>
+            <Text style={styles.statLabel}>Watering</Text>
+          </View>
+        </View>
+
+        {/* 5. RECOMMENDATION: Card Style */}
+        <Text style={styles.sectionTitle}>AI Advice / مشورہ</Text>
+        <TouchableOpacity style={styles.adviceCard}>
+          <Text style={styles.adviceEmoji}>💡</Text>
+          <Text style={styles.adviceText}>
+            It's getting hot in {summary.location}. Water your Tomatoes after sunset tonight.
+          </Text>
+        </TouchableOpacity>
+
+        {/* 6. BOTTOM NAVIGATION: Large Targets */}
+        <View style={styles.footerRow}>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/history')}>
+            <History color="#888" size={24} />
+            <Text style={styles.navText}>History</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionCard} onPress={() => signOut()}>
-            <LogOut color="#ff4d4f" size={22} />
-            <Text style={styles.actionCardText}>Log Out</Text>
+          <TouchableOpacity style={styles.navItem} onPress={() => signOut()}>
+            <Text style={[styles.navText, { color: '#ff4d4f' }]}>Log Out</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -309,136 +120,93 @@ function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
+  container: { flex: 1, backgroundColor: '#000' },
+  scrollContent: { padding: 20 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 25,
+  },
+  greeting: { color: 'white', fontSize: 22, fontWeight: 'bold' },
+  locationBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  locationText: { color: '#888', fontSize: 14 },
+  profileBtn: { backgroundColor: '#1A1A1A', padding: 10, borderRadius: 12 },
+
+  // Status Card
+  statusCard: {
+    backgroundColor: '#111',
+    borderRadius: 24,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#222',
+    marginBottom: 20,
+  },
+  statusLabel: { color: '#888', fontSize: 12, fontWeight: '600' },
+  statusValue: { color: '#00FF66', fontSize: 20, fontWeight: 'bold', marginTop: 4 },
+  statusCircle: { backgroundColor: 'rgba(0, 255, 102, 0.1)', padding: 15, borderRadius: 50 },
+
+  // Scan Button (High Importance)
+  scanButton: {
+    backgroundColor: '#00FF66',
+    borderRadius: 24,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+    marginBottom: 25,
+    // Add a slight glow
+    shadowColor: '#00FF66',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  scanIconCircle: { backgroundColor: 'white', padding: 12, borderRadius: 16 },
+  scanTitle: { color: 'black', fontSize: 18, fontWeight: '800' },
+  scanSub: { color: 'rgba(0,0,0,0.6)', fontSize: 14, fontWeight: '600' },
+
+  // Stats
+  statsRow: { flexDirection: 'row', gap: 15, marginBottom: 25 },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#111',
+    padding: 20,
+    borderRadius: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#222',
+  },
+  statNum: { color: 'white', fontSize: 18, fontWeight: 'bold', marginVertical: 4 },
+  statLabel: { color: '#666', fontSize: 12 },
+
+  // Advice
+  sectionTitle: { color: 'white', fontSize: 16, fontWeight: '700', marginBottom: 10 },
+  adviceCard: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 20,
+    padding: 15,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  adviceEmoji: { fontSize: 24 },
+  adviceText: { color: '#BBB', flex: 1, fontSize: 14, lineHeight: 20 },
+
+  // Footer
+  footerRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 30, opacity: 0.7 },
+  navItem: { alignItems: 'center' },
+  navText: { color: '#888', fontSize: 12, marginTop: 4 },
+
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0A0A0A',
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1A1A1A',
-  },
-  brandText: { color: 'white', fontSize: 20, fontWeight: '800' },
-  aiText: { color: '#1DB954' },
-  dateText: { color: '#555', fontSize: 12, marginTop: 2, fontWeight: '600' },
-  profileCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollContent: { padding: 24, paddingBottom: 40 },
-  welcomeSection: { marginBottom: 24 },
-  greetingText: { color: 'white', fontSize: 24, fontWeight: '700' },
-  subGreeting: { color: '#888', fontSize: 14, marginTop: 4 },
-  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  gridItem: {
-    backgroundColor: '#161616',
-    width: (width - 60) / 2,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#222',
-  },
-  itemHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  itemTitle: { color: '#888', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
-  itemValue: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  recommendationSection: { marginBottom: 32 },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 12,
-  },
-  sectionTitle: { color: 'white', fontSize: 16, fontWeight: '700' },
-  manageText: { color: '#1DB954', fontSize: 14, fontWeight: '600' },
-  recommendationCard: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-  },
-  recommendationHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  recommendationTitle: { color: '#1DB954', fontSize: 16, fontWeight: '700' },
-  recommendationText: { color: 'white', fontSize: 15, lineHeight: 22, marginBottom: 16 },
-  recommendationDetails: {
-    backgroundColor: '#0F0F0F',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-  },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  detailText: { color: '#AAA', fontSize: 12 },
-  emptyRecommendationCard: {
-    backgroundColor: '#161616',
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  emptyRecommendationText: { color: '#555', fontSize: 14, textAlign: 'center' },
-  phaseContainer: { marginBottom: 32 },
-  phaseCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#161616',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    gap: 10,
-  },
-  phaseText: { color: '#CCC', fontSize: 14, fontWeight: '500' },
-  emptyCard: {
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#333',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  emptyText: { color: '#555', fontSize: 14 },
-  primaryScanBtn: {
-    backgroundColor: '#1DB954',
-    flexDirection: 'row',
-    height: 60,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  primaryBtnText: { color: 'black', fontSize: 16, fontWeight: '800' },
-  secondaryActions: { flexDirection: 'row', gap: 12 },
-  actionCard: {
-    flex: 1,
-    backgroundColor: '#161616',
-    height: 60,
-    borderRadius: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#222',
-  },
-  actionCardText: { color: 'white', fontSize: 14, fontWeight: '600' },
 });
 
 export default Home;

@@ -17,7 +17,7 @@ export default function InfoGathering() {
   const { getToken } = useAuth();
   const router = useRouter();
 
-  const [isSaving, setIsSaving] = useState(false); // 🚀 Add loading state
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     location: '',
     experience: 'Beginner',
@@ -40,17 +40,12 @@ export default function InfoGathering() {
   };
 
   const handleSave = async () => {
-    if (isSaving) return; // 🚀 Prevent double submission
+    if (isSaving) return;
 
     setIsSaving(true);
 
     try {
       const token = await getToken();
-      if (!token) {
-        Alert.alert('Error', 'Please sign in again');
-        setIsSaving(false);
-        return;
-      }
 
       const payload = {
         location: formData.location,
@@ -60,41 +55,33 @@ export default function InfoGathering() {
 
       console.log('Sending payload:', payload);
 
-      const res = await fetch('http://localhost:5001/api/users/profile', {
+      const res = await fetch('http://localhost:5001/api/users/profile-public', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      const responseText = await res.text();
-      console.log('Response status:', res.status);
-      console.log('Response body:', responseText);
-
       if (res.ok) {
+        // ✅ IMPORTANT: Reset loading state BEFORE navigation
+        setIsSaving(false);
+
         Alert.alert('Success', 'Profile saved successfully!', [
           {
             text: 'OK',
             onPress: () => {
-              // 🚀 Force navigation after alert
+              // Use replace to clear navigation stack
               router.replace('/(drawer)/Home');
             },
           },
         ]);
       } else {
-        let errorMsg = 'Failed to save profile';
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMsg = errorData.message || errorMsg;
-        } catch {}
-        Alert.alert('Error', `Save failed: ${errorMsg}`);
+        const errorData = await res.json().catch(() => ({}));
+        Alert.alert('Save Failed', errorData.message || 'Something went wrong');
         setIsSaving(false);
       }
     } catch (err) {
-      console.error('Network error:', err);
-      Alert.alert('Error', 'Network error. Make sure backend is running.');
+      console.error('Save error:', err);
+      Alert.alert('Error', 'Network error. Please try again.');
       setIsSaving(false);
     }
   };

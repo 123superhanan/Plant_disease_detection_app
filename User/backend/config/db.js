@@ -12,11 +12,14 @@ const sql = neon(process.env.DATABASE_URL, {
 
 export async function initDB() {
   try {
-    await sql`DROP TABLE IF EXISTS notifications CASCADE;`;
-    await sql`DROP TABLE IF EXISTS detection_history CASCADE;`;
-    await sql`DROP TABLE IF EXISTS user_profiles CASCADE;`;
-    await sql`DROP TABLE IF EXISTS users CASCADE;`;
-    await sql`DROP TABLE IF EXISTS model_feedback CASCADE;`;
+    // 🔥 COMMENT THESE OUT - Only run once to create tables!
+    // If you need to reset, run these manually in Neon console
+    // await sql`DROP TABLE IF EXISTS notifications CASCADE;`;
+    // await sql`DROP TABLE IF EXISTS detection_history CASCADE;`;
+    // await sql`DROP TABLE IF EXISTS user_profiles CASCADE;`;
+    // await sql`DROP TABLE IF EXISTS users CASCADE;`;
+    // await sql`DROP TABLE IF EXISTS model_feedback CASCADE;`;
+    // await sql`DROP TABLE IF EXISTS user_recommendations CASCADE;`;
 
     // Users table
     await sql`
@@ -57,7 +60,7 @@ export async function initDB() {
       );
     `;
 
-    // Notifications & Feedback
+    // Notifications
     await sql`
       CREATE TABLE IF NOT EXISTS notifications (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -71,6 +74,7 @@ export async function initDB() {
       );
     `;
 
+    // Model Feedback
     await sql`
       CREATE TABLE IF NOT EXISTS model_feedback (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -82,12 +86,40 @@ export async function initDB() {
       );
     `;
 
+    // User Recommendations (Cached recommendations)
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_recommendations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        crop TEXT NOT NULL,
+        growth_stage TEXT NOT NULL,
+        season TEXT NOT NULL,
+        recommendation TEXT NOT NULL,
+        short_recommendation TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, crop, growth_stage, season)
+      );
+    `;
+
+    // Indexes for performance
     await sql`CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_detection_history_user_id ON detection_history(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_model_feedback_user_id ON model_feedback(user_id);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_user_recommendations_user_id ON user_recommendations(user_id);`;
 
-    console.log('✅ Database tables created successfully yehu');
+    // 🔥 Keep database connection alive (prevents Neon cold starts)
+    setInterval(async () => {
+      try {
+        await sql`SELECT 1`;
+        console.log('💓 Database ping - connection kept alive');
+      } catch (err) {
+        // Silent fail
+      }
+    }, 30000); // Every 30 seconds
+
+    console.log('✅ Database tables ready yehu');
   } catch (error) {
     console.error('❌ Database initialization failed:');
     console.error(error);
@@ -95,5 +127,4 @@ export async function initDB() {
   }
 }
 
-// Single export
 export { sql };
