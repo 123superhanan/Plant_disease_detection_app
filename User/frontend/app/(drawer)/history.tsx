@@ -1,154 +1,90 @@
-import { useAuth } from '@clerk/clerk-expo';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useRouter } from 'expo-router';
-import {
-  AlertCircle,
-  ArrowLeft,
-  Calendar,
-  ChevronRight,
-  Download,
-  Share2,
-  Trash2,
-  TrendingUp,
-} from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  FlatList,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useAuth } from '@clerk/clerk-expo';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowLeft, ChevronRight } from 'lucide-react-native';
 
 export default function History() {
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken } = useAuth();
   const router = useRouter();
-  const [history, setHistory] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
-  // Load history data
-  const loadHistory = async () => {
+  const [state, setState] = useState({
+    history: [],
+    stats: null,
+    loading: true,
+    refreshing: false,
+  });
+
+  // FIX 3: Stable callback with NO dependency on getToken
+  // This prevents the function from being recreated on every auth state change
+  const loadHistory = useCallback(async (isRefreshing = false) => {
     try {
+      // FIX 1: Standard token retrieval (Clerk handles freshness)
       const token = await getToken();
-      console.log('Token received in History:', !!token); // Debug log
-
-      if (!token) {
-        console.log('No token available');
-        return;
-      }
+      if (!token) return;
 
       const response = await fetch('http://localhost:5001/api/history', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      console.log('Response status:', response.status);
+      const data = await response.json();
 
       if (response.ok) {
-        const data = await response.json();
-        console.log('History data:', data);
-        setHistory(data.history || []);
-        setStats(data.stats);
-      } else {
-        console.log('Failed to load history:', response.status);
+        const cleaned = (data.history || []).map(item => ({
+          ...item,
+          predictionObj: item.prediction ? JSON.parse(item.prediction) : null,
+          createdAtText: new Date(item.created_at).toLocaleString(),
+        }));
+
+        // FIX 4: Atomic state update (Batching loading/data/refreshing)
+        setState(prev => ({
+          ...prev,
+          history: cleaned,
+          stats: data.stats || null,
+          loading: false,
+          refreshing: false,
+        }));
       }
-    } catch (error) {
-      console.error('Load history error:', error);
+    } catch (e) {
+      console.error('Fetch error:', e);
+      setState(prev => ({ ...prev, loading: false, refreshing: false }));
     }
-  };
+  }, []);
 
-  // Delete a single detection
-  const deleteDetection = async id => {
-    Alert.alert('Delete Record', 'Are you sure you want to delete this detection?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const token = await getToken();
-            const response = await fetch(`http://localhost:5001/api/history/${id}`, {
-              method: 'DELETE',
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-            });
-
-            if (response.ok) {
-              loadHistory(); // Refresh the list
-              Alert.alert('Success', 'Detection deleted');
-            } else {
-              Alert.alert('Error', 'Failed to delete');
-            }
-          } catch (error) {
-            console.error('Delete error:', error);
-            Alert.alert('Error', 'Failed to delete');
-          }
-        },
-      },
-    ]);
-  };
-
-  // Share detection result
-  const shareResult = async item => {
-    const message = `
-🌿 Plant Diagnosis Report
-━━━━━━━━━━━━━━━━━━━━━━━━━
-📅 Date: ${new Date(item.created_at).toLocaleDateString()}
-🦠 Disease: ${item.disease_detected}
-📊 Confidence: ${(item.confidence * 100).toFixed(1)}%
-💚 Health Score: ${item.health_score || 'N/A'}
-
-💊 Treatment: ${item.prediction?.recommendations?.treatment || 'N/A'}
-🛡️ Prevention: ${item.prediction?.recommendations?.prevention || 'N/A'}
-
-Powered by AgriVision AI 🌱
-    `;
-
-    try {
-      await Share.share({ message, title: 'Plant Diagnosis Report' });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to share');
-    }
-  };
-
-  // Refresh on focus
+  // FIX 2: Prevent double-loading and cleanup on unmount
   useFocusEffect(
     useCallback(() => {
-      loadHistory();
-    }, [isSignedIn])
+      let isMounted = true;
+
+      const fetchData = async () => {
+        if (isMounted) await loadHistory();
+      };
+
+      fetchData();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [loadHistory])
   );
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadHistory();
-  };
+  const onRefresh = useCallback(() => {
+    setState(prev => ({ ...prev, refreshing: true }));
+    loadHistory(true);
+  }, [loadHistory]);
 
-  const getDiseaseColor = disease => {
-    if (disease === 'Healthy') return '#4CAF50';
-    if (disease === 'Powdery') return '#FF9800';
-    if (disease === 'Rust') return '#F44336';
-    return '#888';
-  };
-
-  const getDiseaseIcon = disease => {
-    if (disease === 'Healthy') return '✅';
-    if (disease === 'Powdery') return '💧';
-    if (disease === 'Rust') return '⚠️';
-    return '🔍';
-  };
-
-  if (loading) {
+  if (state.loading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.center}>
         <ActivityIndicator size="large" color="#1DB954" />
       </View>
     );
@@ -156,155 +92,59 @@ Powered by AgriVision AI 🌱
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#1DB95420', 'transparent']} style={styles.headerGradient} />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ArrowLeft color="white" size={24} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>HISTORY</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1DB954" />
-        }
-      >
-        {/* Stats Cards */}
-        {stats && (
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <TrendingUp color="#1DB954" size={20} />
-              <Text style={styles.statValue}>{stats.total_scans || 0}</Text>
-              <Text style={styles.statLabel}>Total Scans</Text>
-            </View>
-            <View style={styles.statCard}>
-              <AlertCircle color="#F44336" size={20} />
-              <Text style={styles.statValue}>{stats.diseased_scans || 0}</Text>
-              <Text style={styles.statLabel}>Issues Found</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Calendar color="#1DB954" size={20} />
-              <Text style={styles.statValue}>
-                {stats.avg_confidence ? Math.round(stats.avg_confidence * 100) : 0}%
-              </Text>
-              <Text style={styles.statLabel}>Avg Accuracy</Text>
-            </View>
-          </View>
-        )}
-
-        {/* History List */}
-        {history.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>🔍</Text>
-            <Text style={styles.emptyTitle}>No scans yet</Text>
-            <Text style={styles.emptyText}>Upload a plant photo to get started</Text>
-            <TouchableOpacity style={styles.scanBtn} onPress={() => router.push('/Upload')}>
-              <Text style={styles.scanBtnText}>Scan a Plant</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          history.map((item, index) => (
-            <View key={item.id || index} style={styles.historyCard}>
-              <TouchableOpacity
-                style={styles.cardContent}
-                onPress={() => {
-                  router.push({
-                    pathname: '/results',
-                    params: {
-                      prediction: JSON.stringify(
-                        item.prediction || {
-                          disease: item.disease_detected,
-                          confidence: item.confidence,
-                          recommendations: {
-                            treatment: 'Consult local expert',
-                            prevention: 'Regular monitoring',
-                            severity: 'Unknown',
-                          },
-                        }
-                      ),
-                      imageUri: item.image_url,
-                    },
-                  });
-                }}
-              >
-                <View style={styles.cardLeft}>
-                  <View
-                    style={[
-                      styles.iconCircle,
-                      { backgroundColor: getDiseaseColor(item.disease_detected) + '20' },
-                    ]}
-                  >
-                    <Text style={styles.iconEmoji}>{getDiseaseIcon(item.disease_detected)}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardCenter}>
-                  <Text
-                    style={[styles.diseaseText, { color: getDiseaseColor(item.disease_detected) }]}
-                  >
-                    {item.disease_detected}
-                  </Text>
-                  <Text style={styles.confidenceText}>
-                    {(item.confidence * 100).toFixed(1)}% confidence
-                  </Text>
-                  <Text style={styles.dateText}>
-                    {new Date(item.created_at).toLocaleDateString()} at{' '}
-                    {new Date(item.created_at).toLocaleTimeString()}
-                  </Text>
-                </View>
-
-                <View style={styles.cardRight}>
-                  <ChevronRight color="#555" size={20} />
-                </View>
-              </TouchableOpacity>
-
-              {/* Action Buttons */}
-              <View style={styles.actionButtons}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => shareResult(item)}>
-                  <Share2 color="#1DB954" size={16} />
-                  <Text style={styles.actionBtnText}>Share</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.deleteBtn]}
-                  onPress={() => deleteDetection(item.id)}
-                >
-                  <Trash2 color="#F44336" size={16} />
-                  <Text style={[styles.actionBtnText, styles.deleteBtnText]}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        )}
-
-        {/* Download Data Button */}
-        {history.length > 0 && (
-          <TouchableOpacity
-            style={styles.downloadBtn}
-            onPress={() => Alert.alert('Export', 'Export to CSV feature coming soon!')}
-          >
-            <Download color="black" size={20} />
-            <Text style={styles.downloadBtnText}>Export All Data</Text>
+      <LinearGradient colors={['#121212', '#000000']} style={{ flex: 1 }}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <ArrowLeft color="white" size={24} />
           </TouchableOpacity>
-        )}
-      </ScrollView>
+          <Text style={styles.headerText}>History</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <FlatList
+          data={state.history}
+          keyExtractor={item => item.id.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() =>
+                router.push({
+                  pathname: '/results',
+                  params: {
+                    prediction: JSON.stringify(item.predictionObj),
+                    imageUri: item.image_url,
+                  },
+                })
+              }
+            >
+              <View style={styles.row}>
+                <View style={styles.iconBox}>
+                  <Text>🌿</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.title}>{item.disease_detected}</Text>
+                  <Text style={styles.date}>{item.createdAtText}</Text>
+                </View>
+                <ChevronRight color="#555" size={20} />
+              </View>
+            </TouchableOpacity>
+          )}
+          refreshControl={
+            <RefreshControl
+              refreshing={state.refreshing}
+              onRefresh={onRefresh}
+              tintColor="#1DB954"
+            />
+          }
+        />
+      </LinearGradient>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0A0A0A',
-  },
-  headerGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 150 },
+  container: { flex: 1, backgroundColor: '#000' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -313,99 +153,23 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
   },
-  backBtn: {
+  headerText: { color: 'white', fontSize: 20, fontWeight: '700' },
+  card: {
+    backgroundColor: '#181818',
+    marginHorizontal: 16,
+    marginVertical: 6,
+    padding: 16,
+    borderRadius: 12,
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconBox: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: '#1A1A1A',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: { color: 'white', fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
-  scrollContent: { paddingBottom: 40 },
-
-  statsContainer: { flexDirection: 'row', gap: 12, marginHorizontal: 20, marginBottom: 24 },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#161616',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#222',
-  },
-  statValue: { color: 'white', fontSize: 24, fontWeight: 'bold', marginTop: 8 },
-  statLabel: { color: '#888', fontSize: 12, marginTop: 4 },
-
-  emptyContainer: { alignItems: 'center', paddingTop: 100 },
-  emptyEmoji: { fontSize: 64, marginBottom: 16 },
-  emptyTitle: { color: 'white', fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
-  emptyText: { color: '#888', fontSize: 14, marginBottom: 24, textAlign: 'center' },
-  scanBtn: {
-    backgroundColor: '#1DB954',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
-  },
-  scanBtnText: { color: 'black', fontWeight: 'bold', fontSize: 16 },
-
-  historyCard: {
-    backgroundColor: '#161616',
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#222',
-    overflow: 'hidden',
-  },
-  cardContent: { flexDirection: 'row', padding: 16 },
-  cardLeft: { marginRight: 12 },
-  iconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  iconEmoji: { fontSize: 24 },
-  cardCenter: { flex: 1, justifyContent: 'center' },
-  diseaseText: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  confidenceText: { color: '#AAA', fontSize: 12, marginBottom: 2 },
-  dateText: { color: '#666', fontSize: 11 },
-  cardRight: { justifyContent: 'center' },
-
-  actionButtons: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#222',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    gap: 12,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#1A1A1A',
-  },
-  actionBtnText: { color: '#1DB954', fontSize: 12, fontWeight: '500' },
-  deleteBtn: { backgroundColor: '#2A1A1A' },
-  deleteBtnText: { color: '#F44336' },
-
-  downloadBtn: {
-    backgroundColor: '#1DB954',
-    marginHorizontal: 20,
-    marginTop: 8,
-    padding: 16,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: '#282828',
     justifyContent: 'center',
-    gap: 8,
+    alignItems: 'center',
   },
-  downloadBtnText: { color: 'black', fontWeight: 'bold', fontSize: 16 },
+  title: { color: 'white', fontSize: 16, fontWeight: '600' },
+  date: { color: '#666', fontSize: 12, marginTop: 2 },
 });

@@ -5,7 +5,7 @@ import { getOrCreateUser, upsertUserProfile } from './user.service.js';
 
 const router = Router();
 
-router.get('/me', requireAuth, async (req, res) => {
+router.get('/me', async (req, res) => {
   console.log('ROUTE HIT');
   console.log('AUTH HEADER:', req.headers.authorization);
   console.log('REQ.AUTH:', req.auth);

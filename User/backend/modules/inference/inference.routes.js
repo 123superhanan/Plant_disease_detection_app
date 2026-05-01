@@ -35,9 +35,36 @@ const upload = multer({
 });
 
 // ====================== MAIN DETECTION ROUTE ======================
-router.post('/detect', upload.single('file'), detectDisease);
+import { verifyToken } from '@clerk/backend';
 
-// Optional: Add a test route without file upload (for debugging)
+router.post('/detect', upload.single('file'), async (req, res) => {
+  console.log('=== DETECT ROUTE HIT ===');
+
+  const authHeader = req.headers.authorization;
+  console.log('AUTH HEADER:', authHeader);
+
+  let clerkId = null;
+
+  if (authHeader) {
+    const token = authHeader.replace('Bearer ', '');
+
+    try {
+      const session = await verifyToken(token);
+      clerkId = session.sub;
+    } catch (err) {
+      console.log('TOKEN INVALID:', err.message);
+    }
+  }
+
+  console.log('USER:', clerkId || 'guest_user');
+
+  // attach user to request so detectDisease can use it
+  req.clerkId = clerkId;
+
+  return detectDisease(req, res);
+});
+
+// Optional:  test route without file upload (for debugging)
 router.get('/debug/auth', (req, res) => {
   console.log('🔐 Debug Auth Route Hit');
   console.log('Authorization Header:', req.headers.authorization ? 'Present' : 'Missing');

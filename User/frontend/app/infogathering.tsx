@@ -2,12 +2,22 @@ import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { ArrowRight, Calendar, Heart, MapPin } from 'lucide-react-native';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function InfoGathering() {
   const { getToken } = useAuth();
   const router = useRouter();
 
+  const [isSaving, setIsSaving] = useState(false); // 🚀 Add loading state
   const [formData, setFormData] = useState({
     location: '',
     experience: 'Beginner',
@@ -30,10 +40,15 @@ export default function InfoGathering() {
   };
 
   const handleSave = async () => {
+    if (isSaving) return; // 🚀 Prevent double submission
+
+    setIsSaving(true);
+
     try {
       const token = await getToken();
       if (!token) {
-        alert('Please sign in again');
+        Alert.alert('Error', 'Please sign in again');
+        setIsSaving(false);
         return;
       }
 
@@ -59,20 +74,28 @@ export default function InfoGathering() {
       console.log('Response body:', responseText);
 
       if (res.ok) {
-        alert('Profile saved successfully!');
-        router.replace('/(drawer)/Home');
+        Alert.alert('Success', 'Profile saved successfully!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              // 🚀 Force navigation after alert
+              router.replace('/(drawer)/Home');
+            },
+          },
+        ]);
       } else {
         let errorMsg = 'Failed to save profile';
         try {
           const errorData = JSON.parse(responseText);
           errorMsg = errorData.message || errorMsg;
         } catch {}
-
-        alert(`Save failed: ${errorMsg}`);
+        Alert.alert('Error', `Save failed: ${errorMsg}`);
+        setIsSaving(false);
       }
     } catch (err) {
       console.error('Network error:', err);
-      alert('Network error. Make sure backend is running.');
+      Alert.alert('Error', 'Network error. Make sure backend is running.');
+      setIsSaving(false);
     }
   };
 
@@ -204,19 +227,28 @@ export default function InfoGathering() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.nextBtn} onPress={handleSave}>
-          <Text style={styles.nextBtnText}>COMPLETE SETUP</Text>
-          <ArrowRight color="black" size={20} />
+        <TouchableOpacity
+          style={[styles.nextBtn, isSaving && styles.disabledBtn]}
+          onPress={handleSave}
+          disabled={isSaving}
+        >
+          {isSaving ? (
+            <ActivityIndicator color="black" />
+          ) : (
+            <>
+              <Text style={styles.nextBtnText}>COMPLETE SETUP</Text>
+              <ArrowRight color="black" size={20} />
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
 
-// styles stay the same
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
-  scroll: { padding: 25, paddingTop: 60 },
+  scroll: { padding: 25, paddingTop: 60, paddingBottom: 40 },
   header: { marginBottom: 30 },
   title: { color: 'white', fontSize: 28, fontWeight: 'bold' },
   subtitle: { color: '#888', fontSize: 16, marginTop: 5 },
@@ -261,6 +293,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 40,
     gap: 10,
+  },
+  disabledBtn: {
+    opacity: 0.5,
   },
   nextBtnText: { color: 'black', fontWeight: 'bold', fontSize: 16 },
 });

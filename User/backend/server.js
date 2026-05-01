@@ -14,14 +14,14 @@ import historyRoutes from './modules/inference/history.routes.js';
 dotenv.config();
 
 const app = express();
-app.use(
-  clerkMiddleware({
-    secretKey: process.env.CLERK_SECRET_KEY,
-    publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
-    // This allows requests without auth to pass through
-    // The middleware will still try to authenticate, but won't block
-  })
-);
+// app.use(
+//   clerkMiddleware({
+//     secretKey: process.env.CLERK_SECRET_KEY,
+//     publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+//     // This allows requests without auth to pass through
+//     // The middleware will still try to authenticate, but won't block
+//   })
+// );
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));

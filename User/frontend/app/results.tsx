@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle,
+  Download,
   Droplet,
   Share2,
   Shield,
@@ -206,10 +207,10 @@ export default function Results() {
             <Text style={styles.shareBtnText}>Share Report</Text>
           </TouchableOpacity>
 
-          {/* <TouchableOpacity style={styles.saveBtn} onPress={saveToHistory}>
+          <TouchableOpacity style={styles.saveBtn} onPress={() => router.push('/history')}>
             <Download color="black" size={20} />
             <Text style={styles.saveBtnText}>Save</Text>
-          </TouchableOpacity> */}
+          </TouchableOpacity>
         </View>
 
         {/* Disclaimer */}

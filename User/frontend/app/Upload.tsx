@@ -26,7 +26,6 @@ export default function Upload() {
   const [prediction, setPrediction] = useState<any>(null);
   const [showDetails, setShowDetails] = useState(false);
 
-  // Get your actual local IP address (not localhost for physical device)
   const API_URL = 'http://localhost:5001/api/detect';
 
   // Pick image from gallery
@@ -74,7 +73,7 @@ export default function Upload() {
 
     try {
       const token = await getToken();
-
+      console.log('TOKEN:', token);
       const formData = new FormData();
 
       const uriParts = image.split('/');
