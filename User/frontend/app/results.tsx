@@ -219,34 +219,34 @@ export default function Results() {
 
         {/* Cards */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>💊 Treatment</Text>
+          <Text style={styles.cardTitle}> Treatment</Text>
           <Text style={styles.cardText}>{data.treatment}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>🛡️ Prevention</Text>
+          <Text style={styles.cardTitle}> Prevention</Text>
           <Text style={styles.cardText}>{data.prevention}</Text>
         </View>
 
         <View style={styles.rowCards}>
           <View style={[styles.halfCard, { backgroundColor: '#1A1A1A' }]}>
-            <Text style={styles.cardTitle}>🌱 Organic</Text>
+            <Text style={styles.cardTitle}> Organic</Text>
             <Text style={styles.cardText}>{data.organic}</Text>
           </View>
           <View style={[styles.halfCard, { backgroundColor: '#1A1A1A' }]}>
-            <Text style={styles.cardTitle}>⚗️ Chemical</Text>
+            <Text style={styles.cardTitle}> Chemical</Text>
             <Text style={styles.cardText}>{data.chemical}</Text>
           </View>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>⚠️ Severity</Text>
+          <Text style={styles.cardTitle}>Severity</Text>
           <Text style={styles.cardText}>{data.severity}</Text>
         </View>
 
         {/* Health Score */}
         <View style={[styles.scoreCard, { borderColor: getSeverityColor() }]}>
-          <Text style={styles.scoreTitle}>🌿 Plant Health Score</Text>
+          <Text style={styles.scoreTitle}> Plant Health Score</Text>
           <Text style={[styles.scoreValue, { color: getSeverityColor() }]}>
             {getHealthScore()}/100
           </Text>
@@ -269,7 +269,7 @@ export default function Results() {
         <View style={styles.buttonRow}>
           <TouchableOpacity style={styles.voiceBtn} onPress={handleTextToSpeech}>
             <Volume2 color="black" size={20} />
-            <Text style={styles.voiceBtnText}>🔊 Read</Text>
+            <Text style={styles.voiceBtnText}> Read</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.shareBtn} onPress={generateAndShareReport}>
             <Share2 color="#1DB954" size={20} />
