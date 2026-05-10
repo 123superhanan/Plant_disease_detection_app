@@ -1,22 +1,26 @@
 {
   "expo": {
     "name": "ArgoVision",
-    "slug": "Ai-dating-app",
+    "slug": "argo-vision",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "../assets/images/logo.png ",
-    "scheme": "aidatingapp",
+    "icon": "./assets/images/logo.png",
+    "scheme": "argovision",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.argovision.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow AgroVision to access your camera to scan for diseases.",
+        "NSPhotoLibraryUsageDescription": "Allow AgroVision to access your photos to analyze plant health."
+      }
     },
     "android": {
+      "package": "com.argovision.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

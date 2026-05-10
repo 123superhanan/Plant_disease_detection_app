@@ -2,13 +2,23 @@ import { useAuth } from '@clerk/clerk-expo';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Image as ImageIcon, Info, ShieldCheck, X, Zap } from 'lucide-react-native';
+import {
+  AlertCircle,
+  Camera,
+  Image as ImageIcon,
+  Info,
+  RefreshCw,
+  ShieldCheck,
+  X,
+  Zap,
+} from 'lucide-react-native';
 import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,6 +35,9 @@ export default function Upload() {
   const [uploading, setUploading] = useState(false);
   const [prediction, setPrediction] = useState<any>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [errorType, setErrorType] = useState('');
 
   const API_URL = 'http://localhost:5001/api/detect';
 
@@ -41,6 +54,7 @@ export default function Upload() {
       setImage(result.assets[0].uri);
       setPrediction(null);
       setShowDetails(false);
+      setErrorModalVisible(false);
     }
   };
 
@@ -62,7 +76,15 @@ export default function Upload() {
       setImage(result.assets[0].uri);
       setPrediction(null);
       setShowDetails(false);
+      setErrorModalVisible(false);
     }
+  };
+
+  // Show error modal with appropriate message
+  const showError = (message: string, type: string = 'general') => {
+    setErrorMessage(message);
+    setErrorType(type);
+    setErrorModalVisible(true);
   };
 
   // Upload and Detect
@@ -70,10 +92,10 @@ export default function Upload() {
     if (!image) return;
 
     setUploading(true);
+    setErrorModalVisible(false);
 
     try {
       const token = await getToken();
-      console.log('TOKEN:', token);
       const formData = new FormData();
 
       const uriParts = image.split('/');
@@ -100,19 +122,88 @@ export default function Upload() {
       });
 
       const text = await response.text();
-
       let data;
+
       try {
         data = JSON.parse(text);
       } catch (e) {
         throw new Error('Invalid response from server');
       }
 
-      if (!response.ok) {
-        Alert.alert('Error', data.error || 'Detection failed');
+      // ========== HANDLE ALL API VALIDATION ERRORS ==========
+
+      // Case 1: Non-leaf image error
+      if (data.error_type === 'leaf' || (data.error && data.error.includes('leaf'))) {
+        showError(
+          data.suggestion ||
+            data.error ||
+            "This doesn't appear to be a plant leaf. Please upload a clear photo of a plant leaf.",
+          'leaf'
+        );
         return;
       }
 
+      // Case 2: Image quality error (blurry, dark, too small)
+      if (
+        data.error_type === 'quality' ||
+        (data.error &&
+          (data.error.includes('quality') ||
+            data.error.includes('blurry') ||
+            data.error.includes('small')))
+      ) {
+        showError(
+          data.suggestion ||
+            data.error ||
+            'Image quality is poor. Please take a clearer, well-lit photo.',
+          'quality'
+        );
+        return;
+      }
+
+      // Case 3: General validation error
+      if (!response.ok || data.error) {
+        showError(
+          data.error || data.suggestion || 'Detection failed. Please try again.',
+          data.error_type || 'general'
+        );
+        return;
+      }
+
+      // Case 4: Success - Check if data has required fields
+      if (data.success === false) {
+        showError(
+          data.error || data.suggestion || 'Unable to analyze image. Please try again.',
+          data.error_type || 'general'
+        );
+        return;
+      }
+
+      // Case 5: Low confidence warning
+      if (data.confidence && data.confidence < 0.6) {
+        Alert.alert(
+          'Low Confidence',
+          `Detection confidence is only ${(data.confidence * 100).toFixed(1)}%. Please upload a clearer image for better results.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Still proceed but show warning
+                router.push({
+                  pathname: '/results',
+                  params: {
+                    prediction: JSON.stringify(data),
+                    imageUri: image,
+                    lowConfidence: 'true',
+                  },
+                });
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // Success - Navigate to results
       router.push({
         pathname: '/results',
         params: {
@@ -120,15 +211,72 @@ export default function Upload() {
           imageUri: image,
         },
       });
+    } catch (error: any) {
+      console.error('Detection error:', error);
 
-      Alert.alert('Success', `Detected: ${data.disease || data.disease_name}`);
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Failed to connect to server');
+      // Handle network errors
+      if (error.message === 'Network request failed') {
+        showError('Cannot connect to server. Please check your internet connection.', 'network');
+      } else {
+        showError('Failed to analyze image. Please try again.', 'server');
+      }
     } finally {
       setUploading(false);
     }
   };
+
+  // Reset and try again
+  const resetAndTryAgain = () => {
+    setImage(null);
+    setPrediction(null);
+    setShowDetails(false);
+    setErrorModalVisible(false);
+    setErrorMessage('');
+    setErrorType('');
+  };
+
+  // Get error icon based on type
+  const getErrorIcon = () => {
+    switch (errorType) {
+      case 'leaf':
+        return <AlertCircle color="#FF6B6B" size={48} />;
+      case 'quality':
+        return <Camera color="#FFB347" size={48} />;
+      case 'network':
+        return <RefreshCw color="#4ECDC4" size={48} />;
+      default:
+        return <AlertCircle color="#FF6B6B" size={48} />;
+    }
+  };
+
+  // Get error title based on type
+  const getErrorTitle = () => {
+    switch (errorType) {
+      case 'leaf':
+        return 'Not a Plant Leaf';
+      case 'quality':
+        return 'Poor Image Quality';
+      case 'network':
+        return 'Connection Error';
+      default:
+        return 'Analysis Failed';
+    }
+  };
+
+  // Get error suggestion based on type
+  const getErrorSuggestion = () => {
+    switch (errorType) {
+      case 'leaf':
+        return 'Try uploading a close-up photo of a single plant leaf against a plain background.';
+      case 'quality':
+        return 'Ensure good lighting, hold the camera steady, and make sure the leaf is in focus.';
+      case 'network':
+        return 'Check your internet connection and try again.';
+      default:
+        return 'Please try again with a clear photo of a plant leaf.';
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#1DB95420', 'transparent']} style={styles.backgroundGlow} />
@@ -148,6 +296,39 @@ export default function Upload() {
         </TouchableOpacity>
       </View>
 
+      {/* Error Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={errorModalVisible}
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIcon}>{getErrorIcon()}</View>
+            <Text style={styles.modalTitle}>{getErrorTitle()}</Text>
+            <Text style={styles.modalMessage}>{errorMessage || 'Something went wrong'}</Text>
+
+            <View style={styles.suggestionBox}>
+              <Text style={styles.suggestionTitle}>💡 Suggestion</Text>
+              <Text style={styles.suggestionText}>{getErrorSuggestion()}</Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setErrorModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Dismiss</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalRetryBtn} onPress={resetAndTryAgain}>
+                <Text style={styles.modalRetryText}>Try Again</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {image ? (
@@ -165,11 +346,12 @@ export default function Upload() {
               <View style={styles.scanBox}>
                 <Zap color="#1DB954" size={40} style={styles.zapIcon} />
                 <Text style={styles.emptyText}>Place your plant in the frame</Text>
+                <Text style={styles.emptySubText}>Take a clear photo of a single leaf</Text>
               </View>
             </View>
           )}
 
-          {/* Prediction Details */}
+          {/* Prediction Details with Validation Info */}
           {prediction && showDetails && (
             <View style={styles.detailsContainer}>
               <View style={styles.diseaseCard}>
@@ -180,23 +362,48 @@ export default function Upload() {
                     `${(prediction.confidence * 100).toFixed(1)}%`}
                 </Text>
 
+                {/* Show validation info if available */}
+                {prediction.validation && (
+                  <View style={styles.validationBadge}>
+                    <ShieldCheck color="#1DB954" size={16} />
+                    <Text style={styles.validationText}>
+                      {prediction.validation.leaf_check || 'Leaf verified'}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Damage severity if available */}
+                {prediction.validation?.damage_severity && (
+                  <View style={styles.damageBadge}>
+                    <Text style={styles.damageText}>
+                      Damage: {prediction.validation.damage_severity} (
+                      {prediction.validation.damage_percentage}%)
+                    </Text>
+                  </View>
+                )}
+
                 <View style={styles.divider} />
 
                 <Text style={styles.sectionTitle}>🌿 Treatment</Text>
                 <Text style={styles.sectionText}>
-                  {prediction.recommendations?.treatment ||
+                  {prediction.details?.treatment ||
+                    prediction.recommendations?.treatment ||
                     'Apply appropriate fungicide. Remove infected leaves.'}
                 </Text>
 
                 <Text style={styles.sectionTitle}>🛡️ Prevention</Text>
                 <Text style={styles.sectionText}>
-                  {prediction.recommendations?.prevention ||
+                  {prediction.details?.prevention ||
+                    prediction.recommendations?.prevention ||
                     'Improve air circulation. Water at base of plant.'}
                 </Text>
 
                 <Text style={styles.sectionTitle}>⚠️ Severity</Text>
                 <Text style={styles.sectionText}>
-                  {prediction.recommendations?.severity || 'Moderate'}
+                  {prediction.validation?.damage_severity ||
+                    prediction.details?.severity ||
+                    prediction.recommendations?.severity ||
+                    'Moderate'}
                 </Text>
               </View>
 
@@ -232,7 +439,7 @@ export default function Upload() {
                 </View>
               ) : (
                 <View style={styles.actionRow}>
-                  <TouchableOpacity style={styles.retakeBtn} onPress={() => setImage(null)}>
+                  <TouchableOpacity style={styles.retakeBtn} onPress={resetAndTryAgain}>
                     <Text style={styles.retakeText}>RETAKE</Text>
                   </TouchableOpacity>
 
@@ -293,6 +500,7 @@ const styles = StyleSheet.create({
   },
   zapIcon: { marginBottom: 20, opacity: 0.5 },
   emptyText: { color: '#555', fontSize: 16, textAlign: 'center' },
+  emptySubText: { color: '#333', fontSize: 12, textAlign: 'center', marginTop: 8 },
 
   previewContainer: {
     width: width * 0.85,
@@ -341,6 +549,32 @@ const styles = StyleSheet.create({
     color: '#AAA',
     fontSize: 14,
     marginBottom: 16,
+  },
+  validationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#1DB95420',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  validationText: {
+    color: '#1DB954',
+    fontSize: 12,
+  },
+  damageBadge: {
+    backgroundColor: '#FFB34720',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  damageText: {
+    color: '#FFB347',
+    fontSize: 12,
   },
   divider: {
     height: 1,
@@ -421,5 +655,86 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
     paddingHorizontal: 40,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 24,
+    padding: 24,
+    width: width * 0.85,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  modalIcon: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  modalMessage: {
+    color: '#CCC',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  suggestionBox: {
+    backgroundColor: '#1DB95410',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    borderLeftWidth: 3,
+    borderLeftColor: '#1DB954',
+  },
+  suggestionTitle: {
+    color: '#1DB954',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  suggestionText: {
+    color: '#AAA',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#2A2A2A',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#AAA',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalRetryBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#1DB954',
+    alignItems: 'center',
+  },
+  modalRetryText: {
+    color: 'black',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });

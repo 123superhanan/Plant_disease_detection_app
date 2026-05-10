@@ -102,6 +102,15 @@ export async function initDB() {
       );
     `;
 
+    // ✅ FIXED: Add new columns to detection_history (separate query)
+    await sql`
+      ALTER TABLE detection_history 
+      ADD COLUMN IF NOT EXISTS damage_severity VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS damage_percentage DECIMAL(5,2),
+      ADD COLUMN IF NOT EXISTS validation_quality TEXT,
+      ADD COLUMN IF NOT EXISTS validation_leaf TEXT;
+    `;
+
     // Indexes for performance
     await sql`CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_detection_history_user_id ON detection_history(user_id);`;
