@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/clerk-expo';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
@@ -9,7 +8,6 @@ import {
   Download,
   Droplet,
   Globe,
-  Mic,
   Share2,
   Shield,
   Volume2,
@@ -101,7 +99,7 @@ const RECOMMENDATION_DATA = {
 export default function Results() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { getToken } = useAuth();
+
   const prediction = JSON.parse(params.prediction as string);
   const imageUri = params.imageUri as string;
 

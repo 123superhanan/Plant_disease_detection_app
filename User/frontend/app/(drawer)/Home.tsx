@@ -1,4 +1,3 @@
-import Voice from '@react-native-voice/voice';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import {
@@ -22,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -76,11 +76,54 @@ function Home() {
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [language, setLanguage] = useState('en');
 
+  // Lazy load Voice only on native platforms
+  const [Voice, setVoice] = useState(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      import('@react-native-voice/voice').then(module => {
+        const VoiceModule = module.default;
+        setVoice(VoiceModule);
+      });
+    }
+  }, []);
+
+  // Voice event listeners
+  useEffect(() => {
+    if (!Voice) return;
+
+    const onSpeechResults = e => {
+      if (!e.value || !e.value.length) return;
+      const spokenText = e.value[0];
+      handleVoiceCommand(spokenText);
+      setIsListening(false);
+    };
+
+    const onSpeechError = e => {
+      console.error('Voice error:', e);
+      setIsListening(false);
+    };
+
+    const onSpeechEnd = () => {
+      setIsListening(false);
+    };
+
+    Voice.onSpeechResults = onSpeechResults;
+    Voice.onSpeechError = onSpeechError;
+    Voice.onSpeechEnd = onSpeechEnd;
+
+    return () => {
+      Voice.destroy?.().then(() => {
+        Voice.removeAllListeners?.();
+      });
+    };
+  }, [Voice, recommendation, language]);
+
   const loadProfile = async () => {
     try {
-      const response = await fetch(
-        `http://localhost:5001/api/users/profile-summary-public?email=${encodeURIComponent(user.email)}`
-      );
+      // Just fetch profile without email - use a public endpoint that doesn't need email
+      const response = await fetch('http://localhost:5001/api/users/profile-summary-public');
+
       if (response.ok) {
         const data = await response.json();
         setProfile(data);
@@ -162,7 +205,7 @@ function Home() {
   useFocusEffect(
     useCallback(() => {
       loadProfile();
-    }, [])
+    }, [user])
   );
 
   useEffect(() => {
@@ -173,23 +216,6 @@ function Home() {
     }
   }, [profile]);
 
-  useEffect(() => {
-    Voice.onSpeechResults = e => {
-      if (!e.value || !e.value.length) return;
-
-      const spokenText = e.value[0];
-      handleVoiceCommand(spokenText);
-      setIsListening(false);
-    };
-    Voice.onSpeechError = e => {
-      console.error('Voice error:', e);
-      setIsListening(false);
-    };
-    return () => {
-      Voice.destroy().then(() => Voice.removeAllListeners());
-    };
-  }, [recommendation, language]);
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -198,7 +224,6 @@ function Home() {
     );
   }
 
-  // Urdu translations for common recommendation patterns
   const translateRecommendation = (text, targetLang) => {
     if (targetLang === 'en') return text;
 
@@ -262,6 +287,10 @@ function Home() {
   };
 
   const startListening = async () => {
+    if (!Voice) {
+      alert('Voice recognition not available on web');
+      return;
+    }
     try {
       setIsListening(true);
       const isAvailable = await Voice.isAvailable();
@@ -376,7 +405,6 @@ function Home() {
         <View style={styles.adviceHeader}>
           <Text style={styles.sectionTitle}>{translations[language].aiAdvice}</Text>
           <View style={styles.adviceHeaderRight}>
-            {/* Language Toggle Button */}
             <TouchableOpacity
               style={styles.langBtn}
               onPress={() => setLanguage(language === 'en' ? 'ur' : 'en')}
@@ -385,7 +413,6 @@ function Home() {
               <Text style={styles.langText}>{language === 'en' ? 'اردو' : 'EN'}</Text>
             </TouchableOpacity>
 
-            {/* Text-to-Speech Button */}
             {recommendation && !recommendationLoading && (
               <TouchableOpacity style={styles.speakBtn} onPress={speakAdvice}>
                 <Volume2 color="#00FF66" size={16} />

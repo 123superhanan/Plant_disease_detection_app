@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+
 import { Apple, ArrowRight, Facebook, Github, Leaf, Lock, Mail, User } from 'lucide-react-native';
 import { useState } from 'react';
 import {
@@ -19,8 +19,20 @@ import {
 
 const { width } = Dimensions.get('window');
 
-const API_URL = 'http://localhost:5001/api/auth';
+const API_URL = 'http://192.168.10.5:5001/api/auth';
+const storage = {
+  setToken: (token: string) => {
+    localStorage.setItem('userToken', token);
+  },
 
+  getToken: () => {
+    return localStorage.getItem('userToken');
+  },
+
+  removeToken: () => {
+    localStorage.removeItem('userToken');
+  },
+};
 const Register = () => {
   const router = useRouter();
 
@@ -42,14 +54,14 @@ const Register = () => {
     setConfirmError('');
   };
 
-  // Store token securely
-  const storeToken = async token => {
-    await SecureStore.setItemAsync('userToken', token);
+  const storeToken = async (token: string) => {
+    storage.setToken(token);
+    console.log('✅ Token stored');
   };
 
   // Get token
   const getToken = async () => {
-    return await SecureStore.getItemAsync('userToken');
+    return storage.getToken();
   };
 
   // Handle Login
@@ -144,7 +156,7 @@ const Register = () => {
     const token = await getToken();
     console.log('Stored token:', token ? 'exists' : 'missing');
 
-    const response = await fetch('http://localhost:5001/api/auth/me', {
+    const response = await fetch(`${API_URL}/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await response.json();

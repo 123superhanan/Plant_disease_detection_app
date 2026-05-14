@@ -1,211 +1,189 @@
+import { useAuth } from '@clerk/clerk-expo';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, LogOut, Mail, MapPin, Sprout } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowLeft, Trash2, XCircle } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  ScrollView,
+  Dimensions,
+  FlatList,
+  Image,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../../context/AuthContext';
 
-export default function Profile() {
-  const { logout, user } = useAuth();
+const { width } = Dimensions.get('window');
+
+export default function History() {
+  const { getToken } = useAuth();
   const router = useRouter();
-
-  const [profile, setProfile] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalScans: 0, totalDiseases: 0 });
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadProfile();
-    loadStats();
-  }, []);
+  const API_BASE = 'http://192.168.10.5:5001'; // CHANGE THIS TO YOUR IP
 
-  const loadProfile = async () => {
+  const loadHistory = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/users/profile-summary-public');
+      const token = await getToken();
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE}/api/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
-        setProfile(data);
+        setHistory(data.history || []);
+        setStats(data.stats);
+      } else {
+        console.log('No history found');
+        setHistory([]);
       }
     } catch (error) {
-      console.error('Error loading profile:', error);
+      console.error('Error loading history:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const loadStats = async () => {
-    try {
-      const token = await user?.id; // Use user ID for stats
-      if (token) {
-        const response = await fetch('http://localhost:5001/api/history', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setStats({
-            totalScans: data.history?.length || 0,
-            totalDiseases: data.stats?.diseased_scans || 0,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
-
-  const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+  const deleteDetection = async id => {
+    Alert.alert('Delete', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const token = await getToken();
+            await fetch(`${API_BASE}/api/history/${id}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            loadHistory();
+          } catch (error) {
+            Alert.alert('Error', 'Failed to delete');
+          }
+        },
+      },
     ]);
   };
 
-  const getUserName = () => {
-    if (user?.name) return user.name;
-    if (user?.email) return user.email.split('@')[0];
-    return 'Gardener';
+  useFocusEffect(
+    useCallback(() => {
+      loadHistory();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadHistory();
   };
 
-  const getUserInitials = () => {
-    const name = getUserName();
-    if (name === 'Gardener') return 'G';
-    return name.charAt(0).toUpperCase();
-  };
-
-  const getUserEmail = () => {
-    return user?.email || 'No email';
+  const getDiseaseColor = disease => {
+    if (disease === 'Healthy') return '#4CAF50';
+    if (disease === 'Powdery') return '#FF9800';
+    if (disease === 'Rust') return '#F44336';
+    return '#888';
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#00FF66" />
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#1DB954" />
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient colors={['#00FF6610', 'transparent']} style={styles.headerGradient} />
+      <LinearGradient colors={['#1DB95420', 'transparent']} style={styles.headerGradient} />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ArrowLeft color="white" size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>PROFILE</Text>
+        <Text style={styles.headerTitle}>HISTORY</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Avatar Section */}
-        <View style={styles.avatarSection}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{getUserInitials()}</Text>
-          </View>
-          <Text style={styles.userName}>{getUserName()}</Text>
-          <Text style={styles.userEmail}>{getUserEmail()}</Text>
-        </View>
-
-        {/* Stats Cards */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{stats.totalScans}</Text>
-            <Text style={styles.statLabel}>Total Scans</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{stats.totalDiseases}</Text>
-            <Text style={styles.statLabel}>Diseases Found</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{profile?.special_plants?.length || 0}</Text>
-            <Text style={styles.statLabel}>Crops</Text>
-          </View>
-        </View>
-
-        {/* Profile Info */}
-        <View style={styles.infoSection}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
-
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <MapPin color="#00FF66" size={18} />
-              <Text style={styles.infoLabel}>Location</Text>
-              <Text style={styles.infoValue}>{profile?.location || 'Not set'}</Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Sprout color="#00FF66" size={18} />
-              <Text style={styles.infoLabel}>Your Crops</Text>
-              <Text style={styles.infoValue}>
-                {profile?.special_plants?.length > 0
-                  ? profile.special_plants.join(', ')
-                  : 'No crops selected'}
-              </Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Calendar color="#00FF66" size={18} />
-              <Text style={styles.infoLabel}>Growth Phases</Text>
-              <Text style={styles.infoValue}>
-                {profile?.plant_phases?.length > 0
-                  ? profile.plant_phases.join(' • ')
-                  : 'Not specified'}
-              </Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Mail color="#00FF66" size={18} />
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{getUserEmail()}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.actionsSection}>
-          <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/infogathering')}>
-            <Text style={styles.editBtnText}>Edit Profile</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.logoutBtn} onPress={handleSignOut}>
-            <LogOut color="#ff4d4f" size={18} />
-            <Text style={styles.logoutBtnText}>Sign Out</Text>
+      {history.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <XCircle color="#555" size={60} />
+          <Text style={styles.emptyTitle}>No scans yet</Text>
+          <Text style={styles.emptyText}>Upload a plant photo to get started</Text>
+          <TouchableOpacity style={styles.scanBtn} onPress={() => router.push('/Upload')}>
+            <Text style={styles.scanBtnText}>Scan a Plant</Text>
           </TouchableOpacity>
         </View>
-
-        {/* App Version */}
-        <Text style={styles.versionText}>AgriVision AI v1.0.0</Text>
-      </ScrollView>
+      ) : (
+        <FlatList
+          data={history}
+          keyExtractor={item => item.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1DB954" />
+          }
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => {
+                router.push({
+                  pathname: '/results',
+                  params: { prediction: JSON.stringify(item.prediction), imageUri: item.image_url },
+                });
+              }}
+            >
+              {item.image_url && (
+                <Image source={{ uri: `${API_BASE}${item.image_url}` }} style={styles.image} />
+              )}
+              <View style={styles.cardContent}>
+                <Text style={[styles.disease, { color: getDiseaseColor(item.disease_detected) }]}>
+                  {item.disease_detected}
+                </Text>
+                <Text style={styles.confidence}>
+                  {(item.confidence * 100).toFixed(1)}% confidence
+                </Text>
+                <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString()}</Text>
+              </View>
+              <TouchableOpacity onPress={() => deleteDetection(item.id)} style={styles.deleteBtn}>
+                <Trash2 color="#F44336" size={20} />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A0A' },
-  loadingContainer: {
+  centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#0A0A0A',
   },
-  headerGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 100 },
-
+  headerGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 150 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
+    paddingTop: 60,
+    paddingBottom: 20,
   },
   backBtn: {
     width: 40,
@@ -215,73 +193,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: { color: 'white', fontSize: 16, fontWeight: '700', letterSpacing: 1 },
-
-  scrollContent: { paddingBottom: 40 },
-
-  avatarSection: { alignItems: 'center', marginTop: 20, marginBottom: 24 },
-  avatarCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#00FF6620',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#00FF66',
-    marginBottom: 12,
-  },
-  avatarText: { color: '#00FF66', fontSize: 36, fontWeight: 'bold' },
-  userName: { color: 'white', fontSize: 22, fontWeight: 'bold', marginBottom: 4 },
-  userEmail: { color: '#888', fontSize: 14 },
-
-  statsRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, marginBottom: 24 },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#161616',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#222',
-  },
-  statValue: { color: '#00FF66', fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
-  statLabel: { color: '#888', fontSize: 12 },
-
-  infoSection: { paddingHorizontal: 20, marginBottom: 24 },
-  sectionTitle: { color: 'white', fontSize: 16, fontWeight: '600', marginBottom: 12 },
-  infoCard: {
-    backgroundColor: '#161616',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#222',
-    gap: 16,
-  },
-  infoRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  infoLabel: { color: '#888', fontSize: 13, width: 80, marginLeft: 8 },
-  infoValue: { color: 'white', fontSize: 13, flex: 1, textAlign: 'right' },
-
-  actionsSection: { paddingHorizontal: 20, gap: 12, marginBottom: 24 },
-  editBtn: {
-    backgroundColor: '#00FF66',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  editBtnText: { color: 'black', fontSize: 16, fontWeight: 'bold' },
-  logoutBtn: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
+  headerTitle: { color: 'white', fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
+  listContent: { padding: 16, paddingBottom: 40 },
+  card: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 16,
+    marginBottom: 12,
+    padding: 12,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ff4d4f30',
+    borderColor: '#2A2A2A',
   },
-  logoutBtnText: { color: '#ff4d4f', fontSize: 16, fontWeight: '600' },
-
-  versionText: { textAlign: 'center', color: '#444', fontSize: 11, marginTop: 20 },
+  image: { width: 60, height: 60, borderRadius: 12, marginRight: 12 },
+  cardContent: { flex: 1 },
+  disease: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  confidence: { color: '#AAA', fontSize: 12, marginBottom: 2 },
+  date: { color: '#666', fontSize: 11 },
+  deleteBtn: { padding: 8 },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 },
+  emptyTitle: { color: 'white', fontSize: 20, fontWeight: 'bold', marginTop: 16 },
+  emptyText: { color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center' },
+  scanBtn: {
+    backgroundColor: '#1DB954',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginTop: 20,
+  },
+  scanBtnText: { color: 'black', fontWeight: 'bold', fontSize: 16 },
 });

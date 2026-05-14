@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/clerk-expo';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -25,6 +24,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+
+// Use this in your fetch
 
 const { width } = Dimensions.get('window');
 
@@ -39,7 +41,7 @@ export default function Upload() {
   const [errorMessage, setErrorMessage] = useState('');
   const [errorType, setErrorType] = useState('');
 
-  const API_URL = 'http://localhost:5001/api/detect';
+  
 
   // Pick image from gallery
   const pickImage = async () => {

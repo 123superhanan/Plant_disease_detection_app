@@ -63,47 +63,55 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log('Login attempt for:', email);
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' });
     }
 
     // Find user
-    const user = await sql`SELECT * FROM app_users WHERE email = ${email}`;
-    if (user.length === 0) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    const userResult = await sql`SELECT * FROM app_users WHERE email = ${email}`;
+    const userRows = userResult?.rows ?? userResult ?? [];
+
+    console.log('User found:', userRows.length > 0);
+
+    if (userRows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    const user = userRows[0];
+
     // Check password
-    const validPassword = await bcrypt.compare(password, user[0].password_hash);
+    const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     // Update last login
-    await sql`UPDATE app_users SET last_login = NOW() WHERE id = ${user[0].id}`;
+    await sql`UPDATE app_users SET last_login = NOW() WHERE id = ${user.id}`;
 
     // Generate JWT
-    const token = jwt.sign({ userId: user[0].id, email: user[0].email }, JWT_SECRET, {
+    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
       expiresIn: JWT_EXPIRY,
     });
 
     // Store session
     await sql`
       INSERT INTO user_sessions (user_id, token, expires_at)
-      VALUES (${user[0].id}, ${token}, NOW() + INTERVAL '7 days')
+      VALUES (${user.id}, ${token}, NOW() + INTERVAL '7 days')
     `;
 
     res.json({
       success: true,
       token,
       user: {
-        id: user[0].id,
-        email: user[0].email,
-        name: user[0].name,
+        id: user.id,
+        email: user.email,
+        name: user.name,
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
