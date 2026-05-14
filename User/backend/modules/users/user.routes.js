@@ -1,84 +1,91 @@
 import { Router } from 'express';
 import { sql } from '../../config/db.js';
-import { requireAuth } from '../../middleware/clerk.middleware.js';
-import { getOrCreateUser, upsertUserProfile } from './user.service.js';
+import { verifyToken } from '../auth/auth.routes.js';
+import { getOrCreateUserByEmail, getUserById, upsertUserProfile } from './user.service.js';
 
 const router = Router();
 
-router.get('/me', async (req, res) => {
-  console.log('ROUTE HIT');
-  console.log('AUTH HEADER:', req.headers.authorization);
-  console.log('REQ.AUTH:', req.auth);
+// ====================== GET CURRENT USER ======================
+router.get('/me', verifyToken, async (req, res) => {
   try {
+    const userId = req.userId;
+
     console.log('=== /api/users/me route called ===');
-    console.log('req.auth:', JSON.stringify(req.auth, null, 2));
+    console.log('UserId:', userId);
 
-    const clerkId = req.auth?.userId || req.auth?.claims?.sub;
-
-    if (!clerkId) {
-      return res.status(401).json({ error: 'Unauthorized - No clerkId found' });
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unauthorized - No userId found',
+      });
     }
 
-    console.log('clerkId extracted:', clerkId);
-    console.log('Auth header:', req.headers.authorization);
-    // Use the improved getOrCreateUser
-    const user = await getOrCreateUser(clerkId);
+    const user = await getUserById(userId);
 
-    console.log(' User returned successfully:', user);
+    if (!user) {
+      return res.status(404).json({
+        error: 'User not found',
+      });
+    }
+
+    console.log('✅ User returned successfully:', user);
 
     res.json({
       success: true,
       user: {
         id: user.id,
-        clerk_id: user.clerk_id,
         email: user.email,
+        name: user.name,
         created_at: user.created_at,
-        updated_at: user.updated_at,
+        last_login: user.last_login,
       },
     });
   } catch (err) {
-    console.error('ERROR IN /api/users/me:');
-    console.error('Message:', err.message);
-    console.error('Stack:', err.stack);
+    console.error('ERROR IN /api/users/me:', err.message);
 
     res.status(500).json({
       error: 'Internal server error',
       message: err.message,
-      code: err.code || null,
     });
   }
 });
-// PUBLIC endpoint - no auth required (temporary)
+
+// ====================== PUBLIC PROFILE SAVE ======================
 router.post('/profile-public', async (req, res) => {
   console.log('🔥 PUBLIC PROFILE ENDPOINT HIT');
   console.log('Received body:', req.body);
 
   try {
-    const { location, plant_phases, special_plants } = req.body;
+    const { location, plant_phases, special_plants, email } = req.body;
 
-    // Hardcoded user ID from your database
-    const userId = '16f646e8-464f-426a-863c-5ef4404db5ea';
-
-    console.log('Looking for user:', userId);
-
-    // Check if user exists
-    const userCheck = await sql`SELECT id FROM users WHERE id = ${userId}`;
-    const userRows = userCheck?.rows ?? userCheck ?? [];
-
-    if (userRows.length === 0) {
-      console.log('User not found, creating...');
-      await sql`
-        INSERT INTO users (id, clerk_id, created_at, updated_at)
-        VALUES (${userId}, 'user_39kFDg4Kshy2wB3B3bgIxmslhdS', NOW(), NOW())
-      `;
+    if (!email) {
+      return res.status(400).json({
+        error: 'Email is required',
+      });
     }
 
-    // Upsert profile
+    // Get or create user
+    const user = await getOrCreateUserByEmail(email);
+
+    const userId = user.id;
+
+    // Save profile
     const result = await sql`
-      INSERT INTO user_profiles (user_id, location, plant_phases, special_plants, updated_at)
-      VALUES (${userId}, ${location}, ${plant_phases}, ${special_plants}, NOW())
-      ON CONFLICT (user_id) 
-      DO UPDATE SET 
+      INSERT INTO user_profiles (
+        user_id,
+        location,
+        plant_phases,
+        special_plants,
+        updated_at
+      )
+      VALUES (
+        ${userId},
+        ${location},
+        ${plant_phases},
+        ${special_plants},
+        NOW()
+      )
+      ON CONFLICT (user_id)
+      DO UPDATE SET
         location = EXCLUDED.location,
         plant_phases = EXCLUDED.plant_phases,
         special_plants = EXCLUDED.special_plants,
@@ -87,41 +94,65 @@ router.post('/profile-public', async (req, res) => {
     `;
 
     const rows = result?.rows ?? result ?? [];
+
     console.log('✅ Profile saved:', rows[0]);
 
-    res.json({ success: true, profile: rows[0] });
+    res.json({
+      success: true,
+      profile: rows[0],
+    });
   } catch (error) {
     console.error('Error saving profile:', error);
-    res.status(500).json({ error: error.message });
+
+    res.status(500).json({
+      error: error.message,
+    });
   }
 });
 
-// PUBLIC endpoint to get profile
+// ====================== PUBLIC PROFILE GET ======================
 router.get('/profile-summary-public', async (req, res) => {
   console.log('🔥 PUBLIC PROFILE GET ENDPOINT HIT');
 
   try {
-    const userId = '16f646e8-464f-426a-863c-5ef4404db5ea';
+    const { email } = req.query;
+
+    if (!email) {
+      return res.json({
+        location: null,
+        plant_phases: [],
+        special_plants: [],
+      });
+    }
+
+    const user = await getOrCreateUserByEmail(email);
+
+    const userId = user.id;
 
     const result = await sql`
-      SELECT 
-        u.id as user_id,
-        u.clerk_id,
+      SELECT
+        u.id AS user_id,
+        u.email,
+        u.name,
         up.location,
         up.plant_phases,
         up.special_plants,
         up.updated_at
-      FROM users u
-      LEFT JOIN user_profiles up ON u.id = up.user_id
+      FROM app_users u
+      LEFT JOIN user_profiles up
+      ON u.id = up.user_id
       WHERE u.id = ${userId}
+      LIMIT 1
     `;
 
     const rows = result?.rows ?? result ?? [];
+
     console.log('Profile data:', rows[0]);
 
     res.json(
       rows[0] || {
         user_id: userId,
+        email,
         location: null,
         plant_phases: [],
         special_plants: [],
@@ -129,31 +160,25 @@ router.get('/profile-summary-public', async (req, res) => {
     );
   } catch (error) {
     console.error('Error fetching profile:', error);
-    res.status(500).json({ error: error.message });
+
+    res.status(500).json({
+      error: error.message,
+    });
   }
 });
-router.post('/profile', requireAuth, async (req, res) => {
+
+// ====================== AUTHENTICATED PROFILE SAVE ======================
+router.post('/profile', verifyToken, async (req, res) => {
   try {
-    const clerkId = req.auth?.userId || req.auth?.claims?.sub;
-    if (!clerkId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const userId = req.userId;
 
-    const { location, plant_phases, special_plants } = req.body;
-
-    // Get or create user with proper error handling
-    const user = await getOrCreateUser(clerkId);
-
-    // Check if user exists before accessing properties
-    if (!user || !user.id) {
-      console.error('User not found or created for clerkId:', clerkId);
-      return res.status(404).json({
-        error: 'User not found or could not be created',
-        clerkId: clerkId,
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
       });
     }
 
-    const userId = user.id;
+    const { location, plant_phases, special_plants } = req.body;
 
     const profile = await upsertUserProfile(userId, {
       location,
@@ -166,9 +191,8 @@ router.post('/profile', requireAuth, async (req, res) => {
       profile,
     });
   } catch (err) {
-    console.error(' ERROR IN /api/users/profile:');
-    console.error('Message:', err.message);
-    console.error('Stack:', err.stack);
+    console.error('ERROR IN /api/users/profile:', err.message);
+
     res.status(500).json({
       error: 'Failed to save profile',
       message: err.message,
@@ -176,45 +200,42 @@ router.post('/profile', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/profile-summary', requireAuth, async (req, res) => {
+// ====================== AUTHENTICATED PROFILE GET ======================
+router.get('/profile-summary', verifyToken, async (req, res) => {
   try {
-    const clerkId = req.auth?.userId || req.auth?.claims?.sub;
-    if (!clerkId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+      });
     }
 
-    console.log('🔄 Fetching profile summary for clerkId:', clerkId);
-
-    const user = await getOrCreateUser(clerkId);
-
-    if (!user || !user.id) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    console.log('🔄 Fetching profile summary for userId:', userId);
 
     const result = await sql`
-      SELECT 
+      SELECT
         u.id AS user_id,
-        u.clerk_id,
         u.email,
+        u.name,
         up.location,
         up.plant_phases,
         up.special_plants,
         up.updated_at
-      FROM users u
-      LEFT JOIN user_profiles up 
+      FROM app_users u
+      LEFT JOIN user_profiles up
       ON u.id = up.user_id
-      WHERE u.id = ${user.id}
+      WHERE u.id = ${userId}
       LIMIT 1
     `;
 
-    // Handle Neon fullResults: true → result.rows
     const rows = result?.rows ?? result ?? [];
 
     if (rows.length === 0) {
-      console.log('No profile found for user:', user.id);
+      console.log('No profile found for user:', userId);
+
       return res.json({
-        user_id: user.id,
-        clerk_id: user.clerk_id,
+        user_id: userId,
         location: null,
         plant_phases: [],
         special_plants: [],
@@ -222,12 +243,13 @@ router.get('/profile-summary', requireAuth, async (req, res) => {
     }
 
     const data = rows[0];
+
     console.log('Profile summary returned:', data);
 
     res.json(data);
   } catch (err) {
-    console.error(' ERROR IN /api/users/profile-summary:', err.message);
-    console.error('Stack:', err.stack);
+    console.error('ERROR IN /api/users/profile-summary:', err.message);
+
     res.status(500).json({
       error: 'Failed to fetch profile summary',
       message: err.message,

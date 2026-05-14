@@ -1,10 +1,11 @@
-import { useAuth, useSignIn, useSignUp } from '@clerk/clerk-expo';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Apple, ArrowRight, Facebook, Github, Leaf, Lock, Mail } from 'lucide-react-native';
+import * as SecureStore from 'expo-secure-store';
+import { Apple, ArrowRight, Facebook, Github, Leaf, Lock, Mail, User } from 'lucide-react-native';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
@@ -18,143 +19,138 @@ import {
 
 const { width } = Dimensions.get('window');
 
+const API_URL = 'http://localhost:5001/api/auth';
+
 const Register = () => {
-  const { isLoaded, getToken } = useAuth();
-  const { signIn, setActive: setActiveSignIn } = useSignIn();
-  const { signUp, setActive: setActiveSignUp } = useSignUp();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
-  const [pendingVerification, setPendingVerification] = useState(false);
 
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmError, setConfirmError] = useState('');
-  const [codeError, setCodeError] = useState('');
 
   const resetErrors = () => {
     setEmailError('');
     setPasswordError('');
     setConfirmError('');
-    setCodeError('');
   };
 
-  const handleAuth = async () => {
-    if (!isLoaded) return;
+  // Store token securely
+  const storeToken = async token => {
+    await SecureStore.setItemAsync('userToken', token);
+  };
 
+  // Get token
+  const getToken = async () => {
+    return await SecureStore.getItemAsync('userToken');
+  };
+
+  // Handle Login
+  const handleLogin = async () => {
     resetErrors();
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const result = await signIn.create({
-          identifier: email.trim(),
-          password,
-        });
-
-        await setActiveSignIn({ session: result.createdSessionId });
-
-        // Create user in DB
-        const token = await getToken();
-        if (token) {
-          await fetch('http://localhost:5001/api/users/me', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        console.log('Token after login:', token ? 'exists' : 'missing');
-
-        router.replace('/(drawer)/Home');
-      } else {
-        if (password !== confirmPassword) {
-          setConfirmError('Passwords do not match');
-          setLoading(false);
-          return;
-        }
-
-        await signUp.create({
-          emailAddress: email.trim(),
-          password,
-        });
-
-        await signUp.prepareEmailAddressVerification({
-          strategy: 'email_code',
-        });
-
-        setPendingVerification(true);
-      }
-    } catch (err: any) {
-      if (err.errors && Array.isArray(err.errors)) {
-        err.errors.forEach((e: any) => {
-          if (e.meta?.paramName === 'email_address' || e.code.includes('identifier')) {
-            setEmailError(e.longMessage || e.message);
-          } else if (e.meta?.paramName === 'password') {
-            setPasswordError(e.longMessage || e.message);
-          } else {
-            setPasswordError(e.longMessage || e.message);
-          }
-        });
-      } else {
-        console.log('Auth error:', err);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onVerifyPress = async () => {
-    if (!isLoaded) return;
-
-    resetErrors();
-    setLoading(true);
-
-    try {
-      const signUpAttempt = await signUp.attemptEmailAddressVerification({
-        code,
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
-      if (signUpAttempt.status === 'complete') {
-        await setActiveSignUp({ session: signUpAttempt.createdSessionId });
+      const data = await response.json();
 
-        // Create user in DB
-        const token = await getToken();
-        if (token) {
-          await fetch('http://localhost:5001/api/users/me', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        console.log('Token after verification:', token ? 'exists' : 'missing');
-
+      if (data.success) {
+        await storeToken(data.token);
+        console.log('✅ Login successful, token stored');
         router.replace('/(drawer)/Home');
+      } else {
+        setEmailError(data.error || 'Login failed');
       }
-    } catch (err: any) {
-      setCodeError(err.errors?.[0]?.longMessage || 'Invalid code');
+    } catch (error) {
+      console.error('Login error:', error);
+      setPasswordError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Handle Register
+  const handleRegister = async () => {
+    resetErrors();
+
+    if (password !== confirmPassword) {
+      setConfirmError('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          name: name.trim() || null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        await storeToken(data.token);
+        console.log('✅ Registration successful, token stored');
+        Alert.alert('Success', 'Account created successfully!', [
+          { text: 'OK', onPress: () => router.replace('/(drawer)/Home') },
+        ]);
+      } else {
+        if (data.error.includes('already exists')) {
+          setEmailError('Email already registered. Please login.');
+        } else {
+          setEmailError(data.error || 'Registration failed');
+        }
+      }
+    } catch (error) {
+      console.error('Register error:', error);
+      setPasswordError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAuth = () => {
+    if (isLogin) {
+      handleLogin();
+    } else {
+      handleRegister();
+    }
+  };
+
+  // Test auth (for debugging)
   const testAuth = async () => {
     const token = await getToken();
-    console.log('Token:', token);
+    console.log('Stored token:', token ? 'exists' : 'missing');
 
-    const response = await fetch('http://localhost:5001/api/debug/auth', {
+    const response = await fetch('http://localhost:5001/api/auth/me', {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await response.json();
     console.log('Auth debug:', data);
   };
-  // The rest of your return JSX stays exactly the same
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -166,135 +162,119 @@ const Register = () => {
             <View style={styles.badge}>
               <Text style={styles.badgeText}>AGROVISION AI</Text>
             </View>
-            <Text style={styles.title}>
-              {pendingVerification
-                ? 'CHECK YOUR EMAIL'
-                : isLogin
-                  ? 'WELCOME BACK'
-                  : 'GROW WITH CONFIDENCE'}
-            </Text>
+            <Text style={styles.title}>{isLogin ? 'WELCOME BACK' : 'CREATE ACCOUNT'}</Text>
           </View>
 
-          {!pendingVerification && (
-            <View style={styles.heroContainer}>
-              <LinearGradient
-                colors={['rgba(29, 185, 84, 0.2)', 'transparent']}
-                style={styles.glow}
-              />
-              <View style={styles.iconCircle}>
-                <Leaf color="#1DB954" size={60} strokeWidth={1.5} />
-              </View>
+          <View style={styles.heroContainer}>
+            <LinearGradient
+              colors={['rgba(29, 185, 84, 0.2)', 'transparent']}
+              style={styles.glow}
+            />
+            <View style={styles.iconCircle}>
+              <Leaf color="#1DB954" size={60} strokeWidth={1.5} />
             </View>
-          )}
+          </View>
 
           <View style={styles.form}>
-            {pendingVerification ? (
-              <View>
-                <Text style={styles.smallTextCenter}>Enter the 6-digit code sent to {email}</Text>
+            <View>
+              {!isLogin && (
+                <>
+                  <View style={[styles.inputWrapper, emailError && styles.inputError]}>
+                    <User color="#666" size={20} style={styles.inputIcon} />
+                    <TextInput
+                      placeholder="Full Name (optional)"
+                      placeholderTextColor="#666"
+                      style={styles.input}
+                      value={name}
+                      onChangeText={setName}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                </>
+              )}
 
-                <View style={[styles.inputWrapper, codeError && styles.inputError]}>
-                  <Lock color="#1DB954" size={20} style={styles.inputIcon} />
-                  <TextInput
-                    placeholder="Verification Code"
-                    placeholderTextColor="#666"
-                    style={styles.input}
-                    value={code}
-                    onChangeText={setCode}
-                    keyboardType="numeric"
-                  />
-                </View>
-                {codeError ? <Text style={styles.errorText}>{codeError}</Text> : null}
-
-                <TouchableOpacity style={styles.mainBtn} onPress={onVerifyPress} disabled={loading}>
-                  {loading ? (
-                    <ActivityIndicator color="black" />
-                  ) : (
-                    <Text style={styles.mainBtnText}>VERIFY ACCOUNT</Text>
-                  )}
-                </TouchableOpacity>
+              <View style={[styles.inputWrapper, emailError && styles.inputError]}>
+                <Mail color="#666" size={20} style={styles.inputIcon} />
+                <TextInput
+                  placeholder="Email"
+                  placeholderTextColor="#666"
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
               </View>
-            ) : (
-              <View>
-                <View style={[styles.inputWrapper, emailError && styles.inputError]}>
-                  <Mail color="#666" size={20} style={styles.inputIcon} />
-                  <TextInput
-                    placeholder="Email"
-                    placeholderTextColor="#666"
-                    style={styles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                  />
-                </View>
-                {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+              {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
 
-                <View style={[styles.inputWrapper, passwordError && styles.inputError]}>
-                  <Lock color="#666" size={20} style={styles.inputIcon} />
-                  <TextInput
-                    placeholder="Password"
-                    placeholderTextColor="#666"
-                    secureTextEntry
-                    style={styles.input}
-                    value={password}
-                    onChangeText={setPassword}
-                  />
-                </View>
-                {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+              <View style={[styles.inputWrapper, passwordError && styles.inputError]}>
+                <Lock color="#666" size={20} style={styles.inputIcon} />
+                <TextInput
+                  placeholder="Password"
+                  placeholderTextColor="#666"
+                  secureTextEntry
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+              </View>
+              {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
-                {!isLogin && (
-                  <>
-                    <View style={[styles.inputWrapper, confirmError && styles.inputError]}>
-                      <Lock color="#666" size={20} style={styles.inputIcon} />
-                      <TextInput
-                        placeholder="Confirm Password"
-                        placeholderTextColor="#666"
-                        secureTextEntry
-                        style={styles.input}
-                        value={confirmPassword}
-                        onChangeText={setConfirmPassword}
-                      />
-                    </View>
-                    {confirmError ? <Text style={styles.errorText}>{confirmError}</Text> : null}
-                  </>
+              {!isLogin && (
+                <>
+                  <View style={[styles.inputWrapper, confirmError && styles.inputError]}>
+                    <Lock color="#666" size={20} style={styles.inputIcon} />
+                    <TextInput
+                      placeholder="Confirm Password"
+                      placeholderTextColor="#666"
+                      secureTextEntry
+                      style={styles.input}
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                    />
+                  </View>
+                  {confirmError ? <Text style={styles.errorText}>{confirmError}</Text> : null}
+                </>
+              )}
+
+              <TouchableOpacity style={styles.mainBtn} onPress={handleAuth} disabled={loading}>
+                {loading ? (
+                  <ActivityIndicator color="black" />
+                ) : (
+                  <View style={styles.btnRow}>
+                    <Text style={styles.mainBtnText}>{isLogin ? 'LOGIN' : 'SIGN UP'}</Text>
+                    <ArrowRight color="black" size={20} />
+                  </View>
                 )}
+              </TouchableOpacity>
 
-                <TouchableOpacity style={styles.mainBtn} onPress={handleAuth} disabled={loading}>
-                  {loading ? (
-                    <ActivityIndicator color="black" />
-                  ) : (
-                    <View style={styles.btnRow}>
-                      <Text style={styles.mainBtnText}>{isLogin ? 'LOGIN' : 'CONTINUE'}</Text>
-                      <ArrowRight color="black" size={20} />
-                    </View>
-                  )}
-                </TouchableOpacity>
+              <TouchableOpacity onPress={() => setIsLogin(!isLogin)} style={styles.switchBtn}>
+                <Text style={styles.smallTextCenter}>
+                  {isLogin ? 'New here? Create Account' : 'Already have an account? Login'}
+                </Text>
+              </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => setIsLogin(!isLogin)} style={styles.switchBtn}>
-                  <Text style={styles.smallTextCenter}>
-                    {isLogin ? 'New here? Sign Up' : 'Already have an account? Login'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              {/* Debug button - remove in production */}
+              <TouchableOpacity onPress={testAuth} style={styles.debugBtn}>
+                <Text style={styles.debugText}>🔧 Debug Auth</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {!pendingVerification && (
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Quick Access</Text>
-              <View style={styles.socialRow}>
-                <TouchableOpacity style={styles.socialIcon}>
-                  <Facebook color="white" size={22} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.socialIcon}>
-                  <Apple color="white" size={22} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.socialIcon}>
-                  <Github color="white" size={22} />
-                </TouchableOpacity>
-              </View>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Quick Access</Text>
+            <View style={styles.socialRow}>
+              <TouchableOpacity style={styles.socialIcon}>
+                <Facebook color="white" size={22} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.socialIcon}>
+                <Apple color="white" size={22} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.socialIcon}>
+                <Github color="white" size={22} />
+              </TouchableOpacity>
             </View>
-          )}
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -326,12 +306,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: -0.5,
   },
-  heroContainer: { height: 160, justifyContent: 'center', alignItems: 'center' },
+  heroContainer: { height: 120, justifyContent: 'center', alignItems: 'center' },
   glow: { position: 'absolute', width: 180, height: 180, borderRadius: 90 },
   iconCircle: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: '#1a1a1a',
     justifyContent: 'center',
     alignItems: 'center',
@@ -346,7 +326,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 5,
     paddingHorizontal: 18,
-    height: 60,
+    height: 55,
     borderWidth: 1,
     borderColor: '#333',
   },
@@ -356,7 +336,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, color: 'white', fontSize: 16 },
   mainBtn: {
     backgroundColor: '#1DB954',
-    height: 60,
+    height: 55,
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
@@ -366,6 +346,8 @@ const styles = StyleSheet.create({
   mainBtnText: { color: 'black', fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
   switchBtn: { marginTop: 20 },
   smallTextCenter: { color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 10 },
+  debugBtn: { marginTop: 10, alignSelf: 'center' },
+  debugText: { color: '#555', fontSize: 12 },
   footer: { alignItems: 'center', marginBottom: 10 },
   footerText: {
     color: '#444',
@@ -376,9 +358,9 @@ const styles = StyleSheet.create({
   },
   socialRow: { flexDirection: 'row', gap: 15 },
   socialIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#1a1a1a',
     justifyContent: 'center',
     alignItems: 'center',

@@ -15,7 +15,11 @@ class AdminController {
     try {
       const { page, limit, sortBy, sortOrder, search, role, isActive } = req.query;
       const pagination = { page, limit, sortBy, sortOrder };
-      const filters = { search, role, isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined };
+      const filters = {
+        search,
+        role,
+        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+      };
       const result = await adminService.getAllAdmins(filters, pagination);
       sendSuccess(res, 200, 'Admins fetched successfully', result);
     } catch (error) {

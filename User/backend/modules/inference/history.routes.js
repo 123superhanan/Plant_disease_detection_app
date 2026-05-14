@@ -1,38 +1,21 @@
 // history.routes.js
 import express from 'express';
 import { sql } from '../../config/db.js';
-import { getOrCreateUser } from '../users/user.service.js';
-import { verifyToken } from '@clerk/backend';
+import { verifyToken } from '../../middleware/auth.middleware.js';
+
 const router = express.Router();
 
-router.get('/history', async (req, res) => {
+// GET /api/history - Get user's detection history
+router.get('/history', verifyToken, async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    let clerkId = null;
+    const userId = req.userId;
+    console.log('📜 Fetching history for userId:', userId);
 
-    if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-
-        const session = await verifyToken(token, {
-          secretKey: process.env.CLERK_SECRET_KEY,
-        });
-
-        clerkId = session.sub;
-      } catch (err) {
-        console.log('TOKEN INVALID:', err.message);
-      }
-    }
-
-    
-    if (!clerkId) {
+    if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const user = await getOrCreateUser(clerkId);
-    const userId = user.id;
 
-    console.log('→ Internal userId:', userId);
-
+    // Use app_user_id column
     const historyResult = await sql`
       SELECT 
         id,
@@ -42,7 +25,7 @@ router.get('/history', async (req, res) => {
         prediction::text as prediction,
         created_at
       FROM detection_history 
-      WHERE user_id = ${userId}
+      WHERE app_user_id = ${userId}
       ORDER BY created_at DESC
       LIMIT 20
     `;
@@ -56,12 +39,12 @@ router.get('/history', async (req, res) => {
         AVG(confidence) as avg_confidence,
         MAX(created_at) as last_scan
       FROM detection_history 
-      WHERE user_id = ${userId}
+      WHERE app_user_id = ${userId}
     `;
 
     const stats = statsResult?.rows?.[0] ?? statsResult?.[0] ?? {};
 
-    console.log(` History returned: ${history.length} records`);
+    console.log(`📜 History returned: ${history.length} records`);
 
     return res.json({
       success: true,
@@ -74,8 +57,7 @@ router.get('/history', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(' History route error:', error.message);
-
+    console.error('❌ History route error:', error.message);
     return res.status(500).json({
       success: false,
       error: error.message,

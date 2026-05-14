@@ -1,14 +1,32 @@
-import { verifyToken } from '@clerk/backend';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import FormData from 'form-data';
 import fs from 'fs';
 import { sql } from '../../config/db.js';
-import { getOrCreateUser } from '../users/user.service.js';
 
 dotenv.config();
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+
+// Helper to get user from token
+const getUserFromToken = async token => {
+  if (!token) return null;
+
+  // Verify JWT and get user from database
+  const session = await sql`
+    SELECT user_id, expires_at 
+    FROM user_sessions 
+    WHERE token = ${token} AND expires_at > NOW()
+  `;
+
+  if (session.length === 0) return null;
+
+  const user = await sql`
+    SELECT id, email, name FROM app_users WHERE id = ${session[0].user_id}
+  `;
+
+  return user[0] || null;
+};
 
 export const detectDisease = async (req, res) => {
   try {
@@ -16,26 +34,28 @@ export const detectDisease = async (req, res) => {
 
     const { file } = req;
 
+    // Get token from Authorization header
     const authHeader = req.headers.authorization;
-    let clerkId = null;
+    let token = null;
+    let user = null;
 
     if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        const session = await verifyToken(token, {
-          secretKey: process.env.CLERK_SECRET_KEY,
-        });
-        clerkId = session.sub;
-      } catch (err) {
-        console.log('TOKEN INVALID:', err.message);
-      }
+      token = authHeader.replace('Bearer ', '');
+      user = await getUserFromToken(token);
     }
 
-    console.log('Clerk ID:', clerkId);
-
-    if (!clerkId) {
+    // If no valid user, return 401
+    if (!user) {
+      // Clean up file if exists
+      if (file?.path) {
+        try {
+          fs.unlinkSync(file.path);
+        } catch {}
+      }
       return res.status(401).json({ error: 'User not authenticated' });
     }
+
+    console.log('👤 User:', user.email, user.id);
 
     if (!file) {
       return res.status(400).json({ error: 'No image uploaded' });
@@ -52,34 +72,28 @@ export const detectDisease = async (req, res) => {
 
     const prediction = aiResponse.data;
 
-    // ========== CHECK IF IMAGE VALIDATION FAILED ==========
+    // Check if image validation failed
     if (!prediction.success) {
-      // Clean up uploaded file
       if (file.path) {
-        fs.unlinkSync(file.path);
+        try {
+          fs.unlinkSync(file.path);
+        } catch {}
       }
 
-      // Return validation error to frontend
       return res.status(400).json({
         success: false,
         error: prediction.error,
         error_type: prediction.error_type || 'validation',
         suggestion: prediction.suggestion || 'Please upload a clear photo of a plant leaf',
-        message: prediction.error,
       });
     }
-    // ========== END VALIDATION CHECK ==========
-
-    // Get user from database
-    const user = await getOrCreateUser(clerkId);
-    const userId = user.id;
 
     const imageUrl = `/uploads/${file.filename}`;
 
-    // Save to PostgreSQL
+    // Save to PostgreSQL using app_user_id
     const insertResult = await sql`
       INSERT INTO detection_history (
-        user_id,
+        app_user_id,
         image_url,
         disease_detected,
         confidence,
@@ -89,7 +103,7 @@ export const detectDisease = async (req, res) => {
         created_at
       )
       VALUES (
-        ${userId},
+        ${user.id},
         ${imageUrl},
         ${prediction.disease},
         ${prediction.confidence},
@@ -105,33 +119,31 @@ export const detectDisease = async (req, res) => {
     const detectionId = rows[0]?.id;
 
     // Clean up uploaded file
-    fs.unlinkSync(file.path);
+    if (file.path) {
+      try {
+        fs.unlinkSync(file.path);
+      } catch {}
+    }
 
-    // Return success response with validation info
     return res.json({
       success: true,
       disease: prediction.disease,
       confidence: prediction.confidence,
       confidence_percentage: prediction.confidence_percentage,
       prediction_id: detectionId,
-      validation: prediction.validation, // Includes quality, leaf check, damage info
-      details: prediction.details, // Treatment recommendations
+      validation: prediction.validation,
+      details: prediction.details,
     });
   } catch (error) {
     console.error('Main detection error:', error.message);
 
-    // Check if it's an Axios error from FastAPI
     if (error.response?.data) {
       const aiError = error.response.data;
-
-      // Clean up file
       if (req.file?.path) {
         try {
           fs.unlinkSync(req.file.path);
         } catch {}
       }
-
-      // Forward FastAPI validation errors to frontend
       return res.status(error.response.status || 400).json({
         success: false,
         error: aiError.error || aiError.detail || 'AI Service error',
@@ -140,7 +152,6 @@ export const detectDisease = async (req, res) => {
       });
     }
 
-    // Clean up file on general error
     if (req.file?.path) {
       try {
         fs.unlinkSync(req.file.path);
@@ -156,28 +167,26 @@ export const detectDisease = async (req, res) => {
   }
 };
 
-// Optional: Add endpoint for flower detection
+// Flower detection with custom auth
 export const detectFlower = async (req, res) => {
   try {
     console.log('🌸 Flower detection request received');
 
     const { file } = req;
     const authHeader = req.headers.authorization;
-    let clerkId = null;
+    let user = null;
 
     if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        const session = await verifyToken(token, {
-          secretKey: process.env.CLERK_SECRET_KEY,
-        });
-        clerkId = session.sub;
-      } catch (err) {
-        console.log('TOKEN INVALID:', err.message);
-      }
+      const token = authHeader.replace('Bearer ', '');
+      user = await getUserFromToken(token);
     }
 
-    if (!clerkId) {
+    if (!user) {
+      if (file?.path) {
+        try {
+          fs.unlinkSync(file.path);
+        } catch {}
+      }
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
@@ -185,7 +194,6 @@ export const detectFlower = async (req, res) => {
       return res.status(400).json({ error: 'No image uploaded' });
     }
 
-    // Call FastAPI flower endpoint
     const formData = new FormData();
     formData.append('file', fs.createReadStream(file.path));
 
@@ -196,9 +204,10 @@ export const detectFlower = async (req, res) => {
 
     const prediction = aiResponse.data;
 
-    // Clean up file
     if (file.path) {
-      fs.unlinkSync(file.path);
+      try {
+        fs.unlinkSync(file.path);
+      } catch {}
     }
 
     return res.json({
@@ -210,13 +219,11 @@ export const detectFlower = async (req, res) => {
     });
   } catch (error) {
     console.error('Flower detection error:', error.message);
-
     if (req.file?.path) {
       try {
         fs.unlinkSync(req.file.path);
       } catch {}
     }
-
     return res.status(500).json({
       success: false,
       error: 'Flower detection failed',
@@ -225,7 +232,7 @@ export const detectFlower = async (req, res) => {
   }
 };
 
-// Optional: Add endpoint to detect image type (leaf or flower)
+// Image type detection
 export const detectImageType = async (req, res) => {
   try {
     const { file } = req;
@@ -233,6 +240,13 @@ export const detectImageType = async (req, res) => {
 
     if (!authHeader) {
       return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const user = await getUserFromToken(token);
+
+    if (!user) {
+      return res.status(401).json({ error: 'User not authenticated' });
     }
 
     if (!file) {
@@ -247,9 +261,10 @@ export const detectImageType = async (req, res) => {
       timeout: 15000,
     });
 
-    // Clean up file
     if (file.path) {
-      fs.unlinkSync(file.path);
+      try {
+        fs.unlinkSync(file.path);
+      } catch {}
     }
 
     return res.json(aiResponse.data);
@@ -259,7 +274,6 @@ export const detectImageType = async (req, res) => {
         fs.unlinkSync(req.file.path);
       } catch {}
     }
-
     return res.status(500).json({
       error: 'Image type detection failed',
       details: error.message,

@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { ArrowRight, Calendar, Heart, MapPin } from 'lucide-react-native';
 import { useState } from 'react';
@@ -12,9 +11,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
 
 export default function InfoGathering() {
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
   const router = useRouter();
 
   const [isSaving, setIsSaving] = useState(false);
@@ -46,8 +46,10 @@ export default function InfoGathering() {
 
     try {
       const token = await getToken();
+      const userEmail = user?.email;
 
       const payload = {
+        email: userEmail, // ← Add email for public endpoint
         location: formData.location,
         plant_phases: [growthStage, environment, selectedSeason],
         special_plants: selectedPlants,
@@ -57,19 +59,20 @@ export default function InfoGathering() {
 
       const res = await fetch('http://localhost:5001/api/users/profile-public', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`, // ← Add token for auth
+        },
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
-        // ✅ IMPORTANT: Reset loading state BEFORE navigation
         setIsSaving(false);
 
         Alert.alert('Success', 'Profile saved successfully!', [
           {
             text: 'OK',
             onPress: () => {
-              // Use replace to clear navigation stack
               router.replace('/(drawer)/Home');
             },
           },

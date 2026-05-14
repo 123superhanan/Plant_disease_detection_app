@@ -20,8 +20,37 @@ export async function initDB() {
     // await sql`DROP TABLE IF EXISTS users CASCADE;`;
     // await sql`DROP TABLE IF EXISTS model_feedback CASCADE;`;
     // await sql`DROP TABLE IF EXISTS user_recommendations CASCADE;`;
+    // await sql`DROP TABLE IF EXISTS app_users CASCADE;`;
+    // await sql`DROP TABLE IF EXISTS user_sessions CASCADE;`;
 
-    // Users table
+    // ====================== CUSTOM AUTH TABLES ======================
+
+    // App Users table (replaces Clerk)
+    await sql`
+      CREATE TABLE IF NOT EXISTS app_users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        name TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP
+      );
+    `;
+
+    // Sessions table (for JWT tokens)
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES app_users(id) ON DELETE CASCADE,
+        token TEXT UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // ====================== EXISTING TABLES (Keep as is) ======================
+
+    // Users table (legacy Clerk - can keep or remove later)
     await sql`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -102,7 +131,7 @@ export async function initDB() {
       );
     `;
 
-    // ✅ FIXED: Add new columns to detection_history (separate query)
+    // Add new columns to detection_history
     await sql`
       ALTER TABLE detection_history 
       ADD COLUMN IF NOT EXISTS damage_severity VARCHAR(50),
@@ -111,12 +140,34 @@ export async function initDB() {
       ADD COLUMN IF NOT EXISTS validation_leaf TEXT;
     `;
 
-    // Indexes for performance
+    // ====================== MIGRATE FOREIGN KEYS (Optional) ======================
+    // Add app_user_id to existing tables (for new auth system)
+    await sql`
+      ALTER TABLE detection_history 
+      ADD COLUMN IF NOT EXISTS app_user_id UUID REFERENCES app_users(id);
+    `;
+
+    await sql`
+      ALTER TABLE user_profiles 
+      ADD COLUMN IF NOT EXISTS app_user_id UUID REFERENCES app_users(id);
+    `;
+
+    await sql`
+      ALTER TABLE notifications 
+      ADD COLUMN IF NOT EXISTS app_user_id UUID REFERENCES app_users(id);
+    `;
+
+    // ====================== INDEXES ======================
     await sql`CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_detection_history_user_id ON detection_history(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_model_feedback_user_id ON model_feedback(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_user_recommendations_user_id ON user_recommendations(user_id);`;
+
+    // New indexes for custom auth
+    await sql`CREATE INDEX IF NOT EXISTS idx_app_users_email ON app_users(email);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);`;
 
     // 🔥 Keep database connection alive (prevents Neon cold starts)
     setInterval(async () => {
@@ -126,9 +177,9 @@ export async function initDB() {
       } catch (err) {
         // Silent fail
       }
-    }, 30000); // Every 30 seconds
+    }, 30000);
 
-    console.log('✅ Database tables ready yehu');
+    console.log('✅ Database tables ready (including custom auth)');
   } catch (error) {
     console.error('❌ Database initialization failed:');
     console.error(error);

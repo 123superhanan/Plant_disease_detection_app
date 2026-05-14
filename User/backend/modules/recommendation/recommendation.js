@@ -1,24 +1,21 @@
 import axios from 'axios';
 import { sql } from '../../config/db.js';
-import { getOrCreateUser } from '../users/user.service.js';
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
 
 export const getRecommendation = async (req, res) => {
   try {
     const { location, crop, growth_stage, season } = req.body;
-    const clerkId = req.auth?.userId || req.auth?.claims?.sub;
+    const userId = req.userId; // From verifyToken middleware
 
     console.log('Getting recommendation for:', { location, crop, growth_stage, season });
 
-    // 🚀 FIRST: Check if recommendation exists in database
-    if (clerkId) {
-      const user = await getOrCreateUser(clerkId);
-
+    // Check cache first (using userId from custom auth)
+    if (userId) {
       const existingRec = await sql`
         SELECT recommendation, short_recommendation, updated_at
         FROM user_recommendations
-        WHERE user_id = ${user.id} 
+        WHERE user_id = ${userId} 
           AND crop = ${crop}
           AND growth_stage = ${growth_stage}
           AND season = ${season}
@@ -32,7 +29,6 @@ export const getRecommendation = async (req, res) => {
         const hoursSinceUpdate =
           (Date.now() - new Date(rec.updated_at).getTime()) / (1000 * 60 * 60);
 
-        // If less than 24 hours old, return cached version
         if (hoursSinceUpdate < 24) {
           console.log('✅ Returning cached recommendation from database');
           return res.json({
@@ -48,7 +44,7 @@ export const getRecommendation = async (req, res) => {
       }
     }
 
-    // 🚀 SECOND: Generate new recommendation from FastAPI
+    // Generate new recommendation from FastAPI
     const response = await axios.post(`${AI_SERVICE_URL}/recommend`, {
       location,
       crop,
@@ -58,16 +54,15 @@ export const getRecommendation = async (req, res) => {
 
     const recommendation = response.data.recommendation || response.data;
     const shortRecommendation =
-      response.data.short_recommendation || recommendation.substring(0, 100);
+      response.data.short_recommendation ||
+      (recommendation ? recommendation.substring(0, 100) : 'Recommendation available');
 
-    // 🚀 THIRD: Save to database
-    if (clerkId) {
+    // Save to database using userId from custom auth
+    if (userId) {
       try {
-        const user = await getOrCreateUser(clerkId);
-
         await sql`
           INSERT INTO user_recommendations (user_id, crop, growth_stage, season, recommendation, short_recommendation, updated_at)
-          VALUES (${user.id}, ${crop}, ${growth_stage}, ${season}, ${recommendation}, ${shortRecommendation}, NOW())
+          VALUES (${userId}, ${crop}, ${growth_stage}, ${season}, ${recommendation}, ${shortRecommendation}, NOW())
           ON CONFLICT (user_id, crop, growth_stage, season)
           DO UPDATE SET 
             recommendation = EXCLUDED.recommendation,
@@ -75,7 +70,7 @@ export const getRecommendation = async (req, res) => {
             updated_at = NOW()
         `;
 
-        console.log('💾 Recommendation saved to database');
+        console.log('💾 Recommendation saved to database for user:', userId);
       } catch (dbError) {
         console.error('Failed to save recommendation:', dbError.message);
       }
@@ -100,8 +95,5 @@ export const getRecommendation = async (req, res) => {
       crop: req.body.crop,
       fallback: true,
     });
-    const shortRecommendation =
-      response.data.short_recommendation ||
-      (recommendation ? recommendation.substring(0, 100) : 'Recommendation available');
   }
 };

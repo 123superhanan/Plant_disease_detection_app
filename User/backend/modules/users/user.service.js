@@ -1,59 +1,55 @@
 import { sql } from '../../config/db.js';
 
-export async function getOrCreateUser(clerkId) {
-  if (!clerkId) throw new Error('clerkId is required');
+// Get or create user by email (custom auth)
+export async function getOrCreateUserByEmail(email, name = null) {
+  if (!email) throw new Error('Email is required');
 
   try {
-    console.log('🔄 getOrCreateUser started for clerkId:', clerkId);
+    console.log('🔄 getOrCreateUser started for email:', email);
 
-    // Force updated_at so DO UPDATE always triggers and Neon returns the row
     let result = await sql`
-      INSERT INTO users (clerk_id, email, created_at, updated_at)
-      VALUES (${clerkId}, NULL, NOW(), NOW())
-      ON CONFLICT (clerk_id) 
-      DO UPDATE SET updated_at = NOW()
-      RETURNING id, clerk_id, email, created_at, updated_at
+      INSERT INTO app_users (email, name, created_at, last_login)
+      VALUES (${email}, ${name}, NOW(), NOW())
+      ON CONFLICT (email) 
+      DO UPDATE SET last_login = NOW()
+      RETURNING id, email, name, created_at, last_login
     `;
 
-    // Handle Neon fullResults: true → result.rows
     const rows = result?.rows ?? result ?? [];
 
     if (rows.length > 0) {
       const user = rows[0];
       console.log('✅ User from upsert:', {
         id: user.id,
-        clerk_id: user.clerk_id,
+        email: user.email,
         created_at: user.created_at,
       });
       return user;
     }
 
-    // Rare fallback
-    console.log('⚠️ Upsert returned no rows → fallback SELECT');
-    result = await sql`
-      SELECT id, clerk_id, email, created_at, updated_at 
-      FROM users 
-      WHERE clerk_id = ${clerkId} 
-      LIMIT 1
-    `;
-
-    const fallbackRows = result?.rows ?? result ?? [];
-
-    if (fallbackRows.length > 0) {
-      const user = fallbackRows[0];
-      console.log('✅ User from fallback:', user);
-      return user;
-    }
-
-    console.error('❌ Failed to get or create user for clerkId:', clerkId);
-    throw new Error(`Failed to get or create user for clerkId: ${clerkId}`);
+    console.error('❌ Failed to get or create user for email:', email);
+    throw new Error(`Failed to get or create user for email: ${email}`);
   } catch (err) {
     console.error('❌ getOrCreateUser error:', err.message);
-    if (err.code) console.error('Error code:', err.code);
-    console.error('Stack:', err.stack);
     throw err;
   }
 }
+
+// Get user by ID
+export async function getUserById(userId) {
+  if (!userId) return null;
+
+  const result = await sql`
+    SELECT id, email, name, created_at, last_login 
+    FROM app_users 
+    WHERE id = ${userId} 
+    LIMIT 1
+  `;
+  const rows = result?.rows ?? result ?? [];
+  return rows.length > 0 ? rows[0] : null;
+}
+
+// Upsert user profile (still uses same table structure)
 export async function upsertUserProfile(userId, data) {
   const { location, plant_phases, special_plants } = data || {};
 
@@ -97,11 +93,13 @@ export async function upsertUserProfile(userId, data) {
   }
 }
 
-export async function getUserIdByClerkId(clerkId) {
-  if (!clerkId) return null;
+// Get user ID by email (for API compatibility)
+export async function getUserIdByEmail(email) {
+  if (!email) return null;
 
   const result = await sql`
-    SELECT id FROM users WHERE clerk_id = ${clerkId} LIMIT 1
+    SELECT id FROM app_users WHERE email = ${email} LIMIT 1
   `;
-  return result && result.length > 0 ? result[0].id : null;
+  const rows = result?.rows ?? result ?? [];
+  return rows.length > 0 ? rows[0].id : null;
 }

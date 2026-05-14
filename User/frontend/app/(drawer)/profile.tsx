@@ -1,17 +1,7 @@
-import { useAuth, useUser } from '@clerk/clerk-expo';
-import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import {
-  ArrowLeft,
-  Calendar,
-  LogOut,
-  Mail,
-  MapPin,
-  Phone,
-  Sprout,
-  User,
-} from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Calendar, LogOut, Mail, MapPin, Sprout } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,10 +12,10 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Profile() {
-  const { getToken, signOut } = useAuth();
-  const { user } = useUser();
+  const { logout, getToken, user } = useAuth();
   const router = useRouter();
 
   const [profile, setProfile] = useState(null);
@@ -39,11 +29,17 @@ export default function Profile() {
 
   const loadProfile = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/users/profile-summary-public');
-      if (response.ok) {
-        const data = await response.json();
-        setProfile(data);
-      }
+      const response = await fetch(
+        `http://localhost:5001/api/users/profile-summary-public?email=${encodeURIComponent(user.email)}`
+      );
+
+      const data = await response.json();
+
+      console.log(data);
+
+      setLocation(data.location || '');
+      setPlantPhases(data.plant_phases || []);
+      setSpecialPlants(data.special_plants || []);
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {
@@ -74,8 +70,29 @@ export default function Profile() {
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => signOut() },
+      { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
     ]);
+  };
+
+  // Get user info from custom auth
+  const getUserInitials = () => {
+    if (user?.name) {
+      return user.name.charAt(0).toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    return 'U';
+  };
+
+  const getUserName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0];
+    return 'Gardener';
+  };
+
+  const getUserEmail = () => {
+    return user?.email || 'No email';
   };
 
   if (loading) {
@@ -103,15 +120,10 @@ export default function Profile() {
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>
-              {user?.firstName?.charAt(0) || 'U'}
-              {user?.lastName?.charAt(0) || ''}
-            </Text>
+            <Text style={styles.avatarText}>{getUserInitials()}</Text>
           </View>
-          <Text style={styles.userName}>{user?.fullName || user?.firstName || 'Gardener'}</Text>
-          <Text style={styles.userEmail}>
-            {user?.emailAddresses?.[0]?.emailAddress || 'No email'}
-          </Text>
+          <Text style={styles.userName}>{getUserName()}</Text>
+          <Text style={styles.userEmail}>{getUserEmail()}</Text>
         </View>
 
         {/* Stats Cards */}
@@ -164,9 +176,7 @@ export default function Profile() {
             <View style={styles.infoRow}>
               <Mail color="#00FF66" size={18} />
               <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>
-                {user?.emailAddresses?.[0]?.emailAddress || 'Not available'}
-              </Text>
+              <Text style={styles.infoValue}>{getUserEmail()}</Text>
             </View>
           </View>
         </View>

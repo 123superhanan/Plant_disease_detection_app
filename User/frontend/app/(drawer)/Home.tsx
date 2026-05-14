@@ -1,24 +1,24 @@
-import { useAuth, useUser } from '@clerk/clerk-expo';
+import Voice from '@react-native-voice/voice';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import {
+  AlertTriangle,
   Camera,
   Droplet,
+  Edit2,
+  Globe,
   History,
   LayoutGrid,
+  Leaf,
+  Lightbulb,
+  Loader,
   MapPin,
+  Mic,
   Sprout,
   User,
-  Edit2,
-  Mic,
-  Globe,
   Volume2,
-  Lightbulb, 
-  Loader, 
-  AlertTriangle, 
-  Leaf,
 } from 'lucide-react-native';
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -30,6 +30,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -66,10 +67,9 @@ const translations = {
 };
 
 function Home() {
-  const { isLoaded, signOut, getToken } = useAuth();
-  const { user } = useUser();
+  const { logout, user, getToken } = useAuth();
   const router = useRouter();
-
+  const [isListening, setIsListening] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [recommendation, setRecommendation] = useState(null);
@@ -78,7 +78,9 @@ function Home() {
 
   const loadProfile = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/users/profile-summary-public');
+      const response = await fetch(
+        `http://localhost:5001/api/users/profile-summary-public?email=${encodeURIComponent(user.email)}`
+      );
       if (response.ok) {
         const data = await response.json();
         setProfile(data);
@@ -88,6 +90,28 @@ function Home() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getLastDetection = async () => {
+    try {
+      const token = await getToken();
+      const response = await fetch('http://localhost:5001/api/history', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.history?.[0] || { disease: 'No scans yet' };
+      }
+    } catch (error) {
+      console.error('Error fetching last detection:', error);
+    }
+    return { disease: 'No scans yet' };
+  };
+
+  const speakResponse = text => {
+    Speech.speak(text, {
+      language: language === 'en' ? 'en-US' : 'ur-PK',
+    });
   };
 
   const fetchRecommendation = async (location, crop, growthStage) => {
@@ -149,7 +173,24 @@ function Home() {
     }
   }, [profile]);
 
-  if (!isLoaded || loading) {
+  useEffect(() => {
+    Voice.onSpeechResults = e => {
+      if (!e.value || !e.value.length) return;
+
+      const spokenText = e.value[0];
+      handleVoiceCommand(spokenText);
+      setIsListening(false);
+    };
+    Voice.onSpeechError = e => {
+      console.error('Voice error:', e);
+      setIsListening(false);
+    };
+    return () => {
+      Voice.destroy().then(() => Voice.removeAllListeners());
+    };
+  }, [recommendation, language]);
+
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#00FF66" />
@@ -173,10 +214,8 @@ function Home() {
         'نائٹروجن کم کریں۔ فاسفورس اور پوٹاشیم بڑھائیں۔',
     };
 
-    // Check if exact match exists
     if (translations[text]) return translations[text];
 
-    // Fallback: simple keyword replacement
     let translated = text;
     const keywordMap = {
       water: 'پانی',
@@ -200,9 +239,49 @@ function Home() {
 
     return translated;
   };
+
   const cropCount = profile?.special_plants?.length || 0;
   const location = profile?.location || 'Islamabad, PK';
   const hasProfile = profile?.location && cropCount > 0;
+
+  const handleVoiceCommand = async command => {
+    const lowerCommand = command.toLowerCase();
+
+    if (lowerCommand.includes('status') || lowerCommand.includes('plant')) {
+      const lastScan = await getLastDetection();
+      speakResponse(`Your last scan showed ${lastScan?.disease || 'no disease'}`);
+    } else if (lowerCommand.includes('advice') || lowerCommand.includes('recommend')) {
+      speakResponse(recommendation?.recommendation || 'Complete your profile first');
+    } else if (lowerCommand.includes('scan') || lowerCommand.includes('detect')) {
+      router.push('/Upload');
+    } else if (lowerCommand.includes('history')) {
+      router.push('/history');
+    } else {
+      speakResponse('Say status, advice, scan, or history');
+    }
+  };
+
+  const startListening = async () => {
+    try {
+      setIsListening(true);
+      const isAvailable = await Voice.isAvailable();
+      if (!isAvailable) {
+        console.log('Voice not available');
+        setIsListening(false);
+        return;
+      }
+      await Voice.start('ur-PK');
+    } catch (error) {
+      console.error('Voice start error:', error);
+      setIsListening(false);
+    }
+  };
+
+  const getUserName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0];
+    return 'Gardener';
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -212,7 +291,7 @@ function Home() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Salaam, {user?.firstName || 'Gardener'}</Text>
+            <Text style={styles.greeting}>Salaam, {getUserName()}</Text>
             <View style={styles.locationBadge}>
               <MapPin size={12} color="#888" />
               <Text style={styles.locationText}>{location}</Text>
@@ -314,6 +393,7 @@ function Home() {
             )}
           </View>
         </View>
+
         {recommendation ? (
           <View style={styles.adviceCard}>
             <Lightbulb color="#FFD700" size={24} />
@@ -346,7 +426,7 @@ function Home() {
             <History color="#888" size={24} />
             <Text style={styles.navText}>{translations[language].history}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => signOut()}>
+          <TouchableOpacity style={styles.navItem} onPress={logout}>
             <Text style={[styles.navText, { color: '#ff4d4f' }]}>
               {translations[language].logOut}
             </Text>
@@ -356,11 +436,8 @@ function Home() {
 
       {/* Floating Voice Button */}
       <TouchableOpacity
-        style={styles.floatingVoiceBtn}
-        onPress={() => {
-          console.log('Voice recognition coming soon');
-        }}
-        activeOpacity={0.8}
+        style={[styles.floatingVoiceBtn, isListening && styles.listeningBtn]}
+        onPress={startListening}
       >
         <Mic color="black" size={24} />
       </TouchableOpacity>
@@ -376,6 +453,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 25,
+  },
+  listeningBtn: {
+    backgroundColor: '#FF4444',
+    transform: [{ scale: 1.1 }],
   },
   headerRight: {
     flexDirection: 'row',
@@ -393,7 +474,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
   setupCard: {
     backgroundColor: '#1A1A1A',
     borderRadius: 20,
@@ -408,7 +488,6 @@ const styles = StyleSheet.create({
   setupContent: { flex: 1 },
   setupTitle: { color: '#00FF66', fontSize: 14, fontWeight: 'bold', marginBottom: 4 },
   setupText: { color: '#888', fontSize: 12 },
-
   statusCard: {
     backgroundColor: '#111',
     borderRadius: 24,
@@ -423,7 +502,6 @@ const styles = StyleSheet.create({
   statusLabel: { color: '#888', fontSize: 12, fontWeight: '600' },
   statusValue: { color: '#00FF66', fontSize: 20, fontWeight: 'bold', marginTop: 4 },
   statusCircle: { backgroundColor: 'rgba(0, 255, 102, 0.1)', padding: 15, borderRadius: 50 },
-
   scanButton: {
     backgroundColor: '#00FF66',
     borderRadius: 24,
@@ -441,7 +519,6 @@ const styles = StyleSheet.create({
   scanIconCircle: { backgroundColor: 'white', padding: 12, borderRadius: 16 },
   scanTitle: { color: 'black', fontSize: 18, fontWeight: '800' },
   scanSub: { color: 'rgba(0,0,0,0.6)', fontSize: 14, fontWeight: '600' },
-
   statsRow: { flexDirection: 'row', gap: 15, marginBottom: 25 },
   statBox: {
     flex: 1,
@@ -454,8 +531,6 @@ const styles = StyleSheet.create({
   },
   statNum: { color: 'white', fontSize: 18, fontWeight: 'bold', marginVertical: 4 },
   statLabel: { color: '#666', fontSize: 12 },
-
-  // AI Advice Section
   adviceHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -493,11 +568,9 @@ const styles = StyleSheet.create({
   },
   adviceEmoji: { fontSize: 24 },
   adviceText: { color: '#BBB', flex: 1, fontSize: 14, lineHeight: 20 },
-
   footerRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 30, opacity: 0.7 },
   navItem: { alignItems: 'center' },
   navText: { color: '#888', fontSize: 12, marginTop: 4 },
-
   floatingVoiceBtn: {
     position: 'absolute',
     bottom: 80,
@@ -515,7 +588,6 @@ const styles = StyleSheet.create({
     elevation: 8,
     zIndex: 1,
   },
-
   loadingContainer: {
     flex: 1,
     backgroundColor: '#000',

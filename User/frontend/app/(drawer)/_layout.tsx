@@ -1,20 +1,42 @@
-import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { Drawer } from 'expo-router/drawer';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAuth } from '../../context/AuthContext';
 
 function CustomDrawerContent(props: any) {
-  const { signOut, userId } = useAuth();
-  const { user } = useUser();
+  const { logout, user } = useAuth();
+
+  // Get initials or default avatar
+  const getInitials = () => {
+    if (user?.name) {
+      return user.name.charAt(0).toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    return 'U';
+  };
+
+  const getUserName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0];
+    return 'Planter';
+  };
+
+  const getUserEmail = () => {
+    return user?.email || 'user@agrivision.ai';
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <View style={styles.headerSection}>
-        <Image source={{ uri: user?.imageUrl }} style={styles.profileImage} />
+        <View style={styles.profileImagePlaceholder}>
+          <Text style={styles.profileInitials}>{getInitials()}</Text>
+        </View>
         <View>
-          <Text style={styles.userName}>{user?.fullName || 'Planter'}</Text>
-          <Text style={styles.userStatus}>{userId?.slice(0, 8)}</Text>
+          <Text style={styles.userName}>{getUserName()}</Text>
+          <Text style={styles.userEmail}>{getUserEmail()}</Text>
         </View>
       </View>
 
@@ -29,9 +51,8 @@ function CustomDrawerContent(props: any) {
         </View>
       </DrawerContentScrollView>
 
-      {/* 2. Footer - Clean Sign Out */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.signOutBtn} onPress={() => signOut()}>
+        <TouchableOpacity style={styles.signOutBtn} onPress={() => logout()}>
           <Ionicons name="log-out-outline" size={20} color="black" style={{ marginRight: 8 }} />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
@@ -50,9 +71,8 @@ export default function DrawerLayout() {
           backgroundColor: '#000',
           width: 280,
         },
-
-        drawerActiveTintColor: '#1DB954', // Green when active
-        drawerInactiveTintColor: '#FFFFFF', // Pure white when inactive (visible!)
+        drawerActiveTintColor: '#1DB954',
+        drawerInactiveTintColor: '#FFFFFF',
         drawerActiveBackgroundColor: '#282828',
         drawerType: 'slide',
       }}
@@ -114,23 +134,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: '#222',
   },
-  profileImage: {
+  profileImagePlaceholder: {
     width: 50,
     height: 50,
     borderRadius: 25,
+    backgroundColor: '#1DB954',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#1DB954',
+  },
+  profileInitials: {
+    color: '#000',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   userName: {
     color: 'white',
     fontSize: 18,
     fontWeight: '700',
   },
-  userStatus: {
-    color: '#1DB954',
+  userEmail: {
+    color: '#888',
     fontSize: 12,
-    fontWeight: '500',
-    textTransform: 'uppercase',
   },
   navSection: {
     marginTop: 10,
@@ -150,7 +176,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1DB954',
     flexDirection: 'row',
     paddingVertical: 14,
-    borderRadius: 30, // Pill shaped
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
   },

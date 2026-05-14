@@ -1,175 +1,287 @@
-import React, { useCallback, useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Calendar, LogOut, Mail, MapPin, Sprout } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
-  RefreshControl,
+  Alert,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useAuth } from '@clerk/clerk-expo';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { ArrowLeft, ChevronRight } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../context/AuthContext';
 
-export default function History() {
-  const { getToken } = useAuth();
+export default function Profile() {
+  const { logout, user } = useAuth();
   const router = useRouter();
 
-  const [state, setState] = useState({
-    history: [],
-    stats: null,
-    loading: true,
-    refreshing: false,
-  });
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ totalScans: 0, totalDiseases: 0 });
 
-  // FIX 3: Stable callback with NO dependency on getToken
-  // This prevents the function from being recreated on every auth state change
-  const loadHistory = useCallback(async (isRefreshing = false) => {
-    try {
-      // FIX 1: Standard token retrieval (Clerk handles freshness)
-      const token = await getToken();
-      if (!token) return;
-
-      const response = await fetch('http://localhost:5001/api/history', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        const cleaned = (data.history || []).map(item => ({
-          ...item,
-          predictionObj: item.prediction ? JSON.parse(item.prediction) : null,
-          createdAtText: new Date(item.created_at).toLocaleString(),
-        }));
-
-        // FIX 4: Atomic state update (Batching loading/data/refreshing)
-        setState(prev => ({
-          ...prev,
-          history: cleaned,
-          stats: data.stats || null,
-          loading: false,
-          refreshing: false,
-        }));
-      }
-    } catch (e) {
-      console.error('Fetch error:', e);
-      setState(prev => ({ ...prev, loading: false, refreshing: false }));
-    }
+  useEffect(() => {
+    loadProfile();
+    loadStats();
   }, []);
 
-  // FIX 2: Prevent double-loading and cleanup on unmount
-  useFocusEffect(
-    useCallback(() => {
-      let isMounted = true;
+  const loadProfile = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/users/profile-summary-public');
+      if (response.ok) {
+        const data = await response.json();
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      const fetchData = async () => {
-        if (isMounted) await loadHistory();
-      };
+  const loadStats = async () => {
+    try {
+      const token = await user?.id; // Use user ID for stats
+      if (token) {
+        const response = await fetch('http://localhost:5001/api/history', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setStats({
+            totalScans: data.history?.length || 0,
+            totalDiseases: data.stats?.diseased_scans || 0,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
 
-      fetchData();
+  const handleSignOut = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
+    ]);
+  };
 
-      return () => {
-        isMounted = false;
-      };
-    }, [loadHistory])
-  );
+  const getUserName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0];
+    return 'Gardener';
+  };
 
-  const onRefresh = useCallback(() => {
-    setState(prev => ({ ...prev, refreshing: true }));
-    loadHistory(true);
-  }, [loadHistory]);
+  const getUserInitials = () => {
+    const name = getUserName();
+    if (name === 'Gardener') return 'G';
+    return name.charAt(0).toUpperCase();
+  };
 
-  if (state.loading) {
+  const getUserEmail = () => {
+    return user?.email || 'No email';
+  };
+
+  if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1DB954" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#00FF66" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#121212', '#000000']} style={{ flex: 1 }}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft color="white" size={24} />
-          </TouchableOpacity>
-          <Text style={styles.headerText}>History</Text>
-          <View style={{ width: 24 }} />
+    <SafeAreaView style={styles.container}>
+      <LinearGradient colors={['#00FF6610', 'transparent']} style={styles.headerGradient} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <ArrowLeft color="white" size={24} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>PROFILE</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Avatar Section */}
+        <View style={styles.avatarSection}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>{getUserInitials()}</Text>
+          </View>
+          <Text style={styles.userName}>{getUserName()}</Text>
+          <Text style={styles.userEmail}>{getUserEmail()}</Text>
         </View>
 
-        <FlatList
-          data={state.history}
-          keyExtractor={item => item.id.toString()}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() =>
-                router.push({
-                  pathname: '/results',
-                  params: {
-                    prediction: JSON.stringify(item.predictionObj),
-                    imageUri: item.image_url,
-                  },
-                })
-              }
-            >
-              <View style={styles.row}>
-                <View style={styles.iconBox}>
-                  <Text>🌿</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.title}>{item.disease_detected}</Text>
-                  <Text style={styles.date}>{item.createdAtText}</Text>
-                </View>
-                <ChevronRight color="#555" size={20} />
-              </View>
-            </TouchableOpacity>
-          )}
-          refreshControl={
-            <RefreshControl
-              refreshing={state.refreshing}
-              onRefresh={onRefresh}
-              tintColor="#1DB954"
-            />
-          }
-        />
-      </LinearGradient>
-    </View>
+        {/* Stats Cards */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.totalScans}</Text>
+            <Text style={styles.statLabel}>Total Scans</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.totalDiseases}</Text>
+            <Text style={styles.statLabel}>Diseases Found</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{profile?.special_plants?.length || 0}</Text>
+            <Text style={styles.statLabel}>Crops</Text>
+          </View>
+        </View>
+
+        {/* Profile Info */}
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+
+          <View style={styles.infoCard}>
+            <View style={styles.infoRow}>
+              <MapPin color="#00FF66" size={18} />
+              <Text style={styles.infoLabel}>Location</Text>
+              <Text style={styles.infoValue}>{profile?.location || 'Not set'}</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Sprout color="#00FF66" size={18} />
+              <Text style={styles.infoLabel}>Your Crops</Text>
+              <Text style={styles.infoValue}>
+                {profile?.special_plants?.length > 0
+                  ? profile.special_plants.join(', ')
+                  : 'No crops selected'}
+              </Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Calendar color="#00FF66" size={18} />
+              <Text style={styles.infoLabel}>Growth Phases</Text>
+              <Text style={styles.infoValue}>
+                {profile?.plant_phases?.length > 0
+                  ? profile.plant_phases.join(' • ')
+                  : 'Not specified'}
+              </Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Mail color="#00FF66" size={18} />
+              <Text style={styles.infoLabel}>Email</Text>
+              <Text style={styles.infoValue}>{getUserEmail()}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionsSection}>
+          <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/infogathering')}>
+            <Text style={styles.editBtnText}>Edit Profile</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleSignOut}>
+            <LogOut color="#ff4d4f" size={18} />
+            <Text style={styles.logoutBtnText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* App Version */}
+        <Text style={styles.versionText}>AgriVision AI v1.0.0</Text>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#0A0A0A' },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0A0A0A',
+  },
+  headerGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 100 },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
   },
-  headerText: { color: 'white', fontSize: 20, fontWeight: '700' },
-  card: {
-    backgroundColor: '#181818',
-    marginHorizontal: 16,
-    marginVertical: 6,
-    padding: 16,
-    borderRadius: 12,
-  },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox: {
+  backBtn: {
     width: 40,
     height: 40,
-    borderRadius: 8,
-    backgroundColor: '#282828',
+    borderRadius: 20,
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: { color: 'white', fontSize: 16, fontWeight: '600' },
-  date: { color: '#666', fontSize: 12, marginTop: 2 },
+  headerTitle: { color: 'white', fontSize: 16, fontWeight: '700', letterSpacing: 1 },
+
+  scrollContent: { paddingBottom: 40 },
+
+  avatarSection: { alignItems: 'center', marginTop: 20, marginBottom: 24 },
+  avatarCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#00FF6620',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#00FF66',
+    marginBottom: 12,
+  },
+  avatarText: { color: '#00FF66', fontSize: 36, fontWeight: 'bold' },
+  userName: { color: 'white', fontSize: 22, fontWeight: 'bold', marginBottom: 4 },
+  userEmail: { color: '#888', fontSize: 14 },
+
+  statsRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, marginBottom: 24 },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#161616',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#222',
+  },
+  statValue: { color: '#00FF66', fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
+  statLabel: { color: '#888', fontSize: 12 },
+
+  infoSection: { paddingHorizontal: 20, marginBottom: 24 },
+  sectionTitle: { color: 'white', fontSize: 16, fontWeight: '600', marginBottom: 12 },
+  infoCard: {
+    backgroundColor: '#161616',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#222',
+    gap: 16,
+  },
+  infoRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  infoLabel: { color: '#888', fontSize: 13, width: 80, marginLeft: 8 },
+  infoValue: { color: 'white', fontSize: 13, flex: 1, textAlign: 'right' },
+
+  actionsSection: { paddingHorizontal: 20, gap: 12, marginBottom: 24 },
+  editBtn: {
+    backgroundColor: '#00FF66',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  editBtnText: { color: 'black', fontSize: 16, fontWeight: 'bold' },
+  logoutBtn: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#ff4d4f30',
+  },
+  logoutBtnText: { color: '#ff4d4f', fontSize: 16, fontWeight: '600' },
+
+  versionText: { textAlign: 'center', color: '#444', fontSize: 11, marginTop: 20 },
 });
