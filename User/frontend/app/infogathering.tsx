@@ -46,10 +46,21 @@ export default function InfoGathering() {
 
     try {
       const token = await getToken();
-      const userEmail = user?.email;
+
+      if (!token) {
+        Alert.alert('Error', 'No auth token found');
+        setIsSaving(false);
+        return;
+      }
+
+      if (!user?.email) {
+        Alert.alert('Error', 'User not loaded yet');
+        setIsSaving(false);
+        return;
+      }
 
       const payload = {
-        email: userEmail, // ← Add email for public endpoint
+        email: user.email,
         location: formData.location,
         plant_phases: [growthStage, environment, selectedSeason],
         special_plants: selectedPlants,
@@ -61,30 +72,29 @@ export default function InfoGathering() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`, // ← Add token for auth
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
 
-      if (res.ok) {
-        setIsSaving(false);
+      const data = await res.json().catch(() => ({}));
 
-        Alert.alert('Success', 'Profile saved successfully!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              router.replace('/(drawer)/Home');
-            },
-          },
-        ]);
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        Alert.alert('Save Failed', errorData.message || 'Something went wrong');
+      if (!res.ok) {
+        Alert.alert('Save Failed', data.error || 'Request failed');
         setIsSaving(false);
+        return;
       }
+
+      Alert.alert('Success', 'Profile saved successfully!', [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/(drawer)/Home'),
+        },
+      ]);
     } catch (err) {
       console.error('Save error:', err);
-      Alert.alert('Error', 'Network error. Please try again.');
+      Alert.alert('Error', 'Network error');
+    } finally {
       setIsSaving(false);
     }
   };

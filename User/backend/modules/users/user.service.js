@@ -4,35 +4,32 @@ import { sql } from '../../config/db.js';
 export async function getOrCreateUserByEmail(email, name = null) {
   if (!email) throw new Error('Email is required');
 
-  try {
-    console.log('🔄 getOrCreateUser started for email:', email);
+  const existing = await sql`
+    SELECT id, email, name, created_at, last_login
+    FROM app_users
+    WHERE email = ${email}
+    LIMIT 1
+  `;
 
-    let result = await sql`
-      INSERT INTO app_users (email, name, created_at, last_login)
-      VALUES (${email}, ${name}, NOW(), NOW())
-      ON CONFLICT (email) 
-      DO UPDATE SET last_login = NOW()
-      RETURNING id, email, name, created_at, last_login
+  const rows = existing?.rows ?? existing ?? [];
+
+  if (rows.length > 0) {
+    await sql`
+      UPDATE app_users
+      SET last_login = NOW()
+      WHERE email = ${email}
     `;
-
-    const rows = result?.rows ?? result ?? [];
-
-    if (rows.length > 0) {
-      const user = rows[0];
-      console.log('✅ User from upsert:', {
-        id: user.id,
-        email: user.email,
-        created_at: user.created_at,
-      });
-      return user;
-    }
-
-    console.error('❌ Failed to get or create user for email:', email);
-    throw new Error(`Failed to get or create user for email: ${email}`);
-  } catch (err) {
-    console.error('❌ getOrCreateUser error:', err.message);
-    throw err;
+    return rows[0];
   }
+
+  const created = await sql`
+    INSERT INTO app_users (email, name, created_at, last_login)
+    VALUES (${email}, ${name}, NOW(), NOW())
+    RETURNING id, email, name, created_at, last_login
+  `;
+
+  const createdRows = created?.rows ?? created ?? [];
+  return createdRows[0];
 }
 
 // Get user by ID

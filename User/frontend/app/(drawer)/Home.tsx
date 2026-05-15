@@ -121,11 +121,21 @@ function Home() {
 
   const loadProfile = async () => {
     try {
-      // Just fetch profile without email - use a public endpoint that doesn't need email
-      const response = await fetch('http://localhost:5001/api/users/profile-summary-public');
+      const token = await getToken();
 
-      if (response.ok) {
-        const data = await response.json();
+      const response = await fetch('http://localhost:5001/api/users/profile-summary-public', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      console.log('PROFILE RESPONSE:', data);
+
+      // ✅ Set the profile data to state
+      if (data) {
         setProfile(data);
       }
     } catch (error) {
@@ -186,9 +196,18 @@ function Home() {
       if (response.ok) {
         const data = await response.json();
         setRecommendation(data);
+      } else {
+        // Fallback recommendation if API fails
+        setRecommendation({
+          recommendation: `For ${crop} in ${growthStage} stage during ${season}: Water regularly (2-3 times/week). Apply balanced fertilizer. Monitor for pests daily.`,
+        });
       }
     } catch (error) {
       console.error('Recommendation error:', error);
+      // Fallback recommendation
+      setRecommendation({
+        recommendation: `For ${crop} in ${growthStage} stage: Water regularly, ensure proper sunlight, and monitor for pests.`,
+      });
     } finally {
       setRecommendationLoading(false);
     }

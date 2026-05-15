@@ -1,4 +1,3 @@
-import { useAuth } from '@clerk/clerk-expo';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, Trash2, XCircle } from 'lucide-react-native';
@@ -9,6 +8,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -17,27 +17,37 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// 1. Import your custom hook
+
+import { useAuth } from '../../context/AuthContext'; // Adjust path based on your file structure
+
 const { width } = Dimensions.get('window');
 
 export default function History() {
-  const { getToken } = useAuth();
   const router = useRouter();
+
+  // 2. Extract getToken from useAuth
+  const { getToken } = useAuth();
+
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const API_BASE = 'http://192.168.10.5:5001'; // CHANGE THIS TO YOUR IP
+  // 3. Updated API base logic to match your AuthProvider
+  const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
+  const API_BASE = `${BASE_URL}/api/history`;
 
   const loadHistory = async () => {
     try {
-      const token = await getToken();
+      const token = await getToken(); // Now using the function from useAuth()
+
       if (!token) {
         setLoading(false);
         return;
       }
 
-      const response = await fetch(`${API_BASE}/api/history`, {
+      const response = await fetch(API_BASE, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -58,7 +68,7 @@ export default function History() {
     }
   };
 
-  const deleteDetection = async id => {
+  const deleteDetection = async (id: string) => {
     Alert.alert('Delete', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -67,11 +77,16 @@ export default function History() {
         onPress: async () => {
           try {
             const token = await getToken();
-            await fetch(`${API_BASE}/api/history/${id}`, {
+            const res = await fetch(`${API_BASE}/${id}`, {
               method: 'DELETE',
               headers: { Authorization: `Bearer ${token}` },
             });
-            loadHistory();
+
+            if (res.ok) {
+              loadHistory();
+            } else {
+              Alert.alert('Error', 'Failed to delete from server');
+            }
           } catch (error) {
             Alert.alert('Error', 'Failed to delete');
           }
@@ -91,7 +106,7 @@ export default function History() {
     loadHistory();
   };
 
-  const getDiseaseColor = disease => {
+  const getDiseaseColor = (disease: string) => {
     if (disease === 'Healthy') return '#4CAF50';
     if (disease === 'Powdery') return '#FF9800';
     if (disease === 'Rust') return '#F44336';
@@ -105,7 +120,6 @@ export default function History() {
       </View>
     );
   }
-
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={['#1DB95420', 'transparent']} style={styles.headerGradient} />

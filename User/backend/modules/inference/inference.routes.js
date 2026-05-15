@@ -3,8 +3,8 @@ import express from 'express';
 import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
+import { verifyToken } from '../../middleware/auth.middleware.js';
 import { detectDisease } from './inference.js';
-
 const router = express.Router();
 
 const uploadDir = 'uploads/';
@@ -23,6 +23,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
 // ✅ Remove any verifyToken middleware here
-router.post('/detect', upload.single('file'), detectDisease);
+router.post('/detect', verifyToken, upload.single('file'), detectDisease);
 
 export default router;

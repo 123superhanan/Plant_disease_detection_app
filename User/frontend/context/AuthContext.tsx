@@ -1,7 +1,11 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
-const API_URL = 'http://localhost:5001/api/auth';
+// Use 10.0.2.2 for Android Emulator, localhost for iOS/Web
+const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
+const API_URL = `${BASE_URL}/api/auth`;
 
 type User = {
   id: string;
@@ -31,15 +35,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const checkAuth = async () => {
     try {
-      const token = localStorage.getItem('userToken');
+      const token = await AsyncStorage.getItem('userToken');
 
       if (!token) {
         setUser(null);
-        setIsLoading(false);
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/auth/me`, {
+      // Note: Removed the redundant /api/auth prefix since it's in API_URL
+      const res = await fetch(`${API_URL}/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -47,16 +51,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const data = await res.json();
 
-      console.log('ME RESPONSE', data);
-
       if (res.ok && data.user) {
         setUser(data.user);
       } else {
-        localStorage.removeItem('userToken');
+        await AsyncStorage.removeItem('userToken');
         setUser(null);
       }
     } catch (e) {
-      console.log('AUTH ERROR', e);
+      console.log('AUTH CHECK ERROR', e);
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -64,43 +66,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const getToken = async () => {
-    try {
-      return localStorage.getItem('userToken');
-    } catch (error) {
-      console.error('Error getting token:', error);
-      return null;
-    }
+    return await AsyncStorage.getItem('userToken');
   };
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
-
     try {
       const response = await fetch(`${API_URL}/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
-      }
+      if (!response.ok) throw new Error(data.error || 'Login failed');
 
-      localStorage.setItem('userToken', data.token);
-
+      await AsyncStorage.setItem('userToken', data.token);
       setUser(data.user);
-
       router.replace('/(drawer)/Home');
     } catch (error: any) {
       console.error('Login error:', error.message);
-      throw new Error(error.message || 'Login failed');
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -108,34 +95,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const register = async (email: string, password: string, name?: string) => {
     setIsLoading(true);
-
     try {
       const response = await fetch(`${API_URL}/register`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          name,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Registration failed');
-      }
+      if (!response.ok) throw new Error(data.error || 'Registration failed');
 
-      localStorage.setItem('userToken', data.token);
-
+      await AsyncStorage.setItem('userToken', data.token);
       setUser(data.user);
-
       router.replace('/(drawer)/Home');
     } catch (error: any) {
       console.error('Register error:', error.message);
-      throw new Error(error.message || 'Registration failed');
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -143,28 +119,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     setIsLoading(true);
-
     try {
-      const token = localStorage.getItem('userToken');
-
+      const token = await AsyncStorage.getItem('userToken');
       if (token) {
         await fetch(`${API_URL}/logout`, {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
       }
-
-      localStorage.removeItem('userToken');
-
-      setUser(null);
-
-      router.replace('/(auth)/register');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      await AsyncStorage.removeItem('userToken');
+      setUser(null);
       setIsLoading(false);
+      router.replace('/(auth)/register');
     }
   };
 
@@ -187,10 +156,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };

@@ -9,60 +9,37 @@ const router = express.Router();
 router.get('/history', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
-    console.log('📜 Fetching history for userId:', userId);
 
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Use app_user_id column
-    const historyResult = await sql`
-      SELECT 
-        id,
-        image_url,
-        disease_detected,
-        confidence,
-        prediction::text as prediction,
-        created_at
-      FROM detection_history 
+    const history = await sql`
+      SELECT id, image_url, disease_detected, confidence, created_at
+      FROM detection_history
       WHERE app_user_id = ${userId}
       ORDER BY created_at DESC
       LIMIT 20
     `;
 
-    const history = historyResult?.rows ?? historyResult ?? [];
-
-    const statsResult = await sql`
-      SELECT 
+    const stats = await sql`
+      SELECT
         COUNT(*) as total_scans,
         SUM(CASE WHEN disease_detected != 'Healthy' THEN 1 ELSE 0 END) as diseased_scans,
-        AVG(confidence) as avg_confidence,
-        MAX(created_at) as last_scan
-      FROM detection_history 
+        AVG(confidence) as avg_confidence
+      FROM detection_history
       WHERE app_user_id = ${userId}
     `;
 
-    const stats = statsResult?.rows?.[0] ?? statsResult?.[0] ?? {};
-
-    console.log(`📜 History returned: ${history.length} records`);
-
     return res.json({
       success: true,
-      history,
-      stats: {
-        total_scans: Number(stats.total_scans) || 0,
-        diseased_scans: Number(stats.diseased_scans) || 0,
-        avg_confidence: Number(stats.avg_confidence) || 0,
-        last_scan: stats.last_scan || null,
-      },
+      history: history?.rows ?? history ?? [],
+      stats: stats?.rows?.[0] ?? stats?.[0] ?? {},
     });
-  } catch (error) {
-    console.error('❌ History route error:', error.message);
+  } catch (err) {
     return res.status(500).json({
       success: false,
-      error: error.message,
-      history: [],
-      stats: { total_scans: 0, diseased_scans: 0, avg_confidence: 0 },
+      error: err.message,
     });
   }
 });
