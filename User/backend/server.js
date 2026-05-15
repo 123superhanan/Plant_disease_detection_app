@@ -4,8 +4,8 @@ import express from 'express';
 import { initDB, sql } from './config/db.js';
 
 // Routes
+import adminRoutes from './modules/admin/admin.routes.js';
 import authRoutes from './modules/auth/auth.routes.js';
-import adminRoutes from './modules/inference/admin.routes.js';
 import historyRoutes from './modules/inference/history.routes.js';
 import inferenceRoutes from './modules/inference/inference.routes.js';
 import recommendationRoutes from './modules/recommendation/recommendation.routes.js';
@@ -42,7 +42,7 @@ app.use('/api/users', userRoutes);
 app.use('/api', inferenceRoutes); // Has its own verifyToken middleware
 app.use('/api/recommendation', recommendationRoutes); // Has its own verifyToken middleware
 app.use('/api', historyRoutes); // Has its own verifyToken middleware
-app.use('/api', adminRoutes); // Has its own verifyToken middleware
+app.use('/api/admin', adminRoutes); // Has its own verifyToken middleware
 
 // ====================== DEBUG ENDPOINTS (Remove in production) ======================
 app.get('/api/debug/recent', async (req, res) => {
